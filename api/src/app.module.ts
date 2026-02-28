@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ScraperService } from './scraper/scraper.service';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
@@ -14,13 +15,14 @@ import { ScraperService } from './scraper/scraper.service';
         type: 'postgres',
         url: config.get<string>('DATABASE_URL'),
         autoLoadEntities: true,
-        synchronize: false, // ⚠️ dev only
+        synchronize: false,
         ssl: {
           rejectUnauthorized: false,
         },
       }),
     }),
   ],
+  controllers: [AppController],
   providers: [ScraperService],
 })
 export class AppModule {}
