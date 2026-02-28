@@ -14,7 +14,7 @@ import { ScraperService } from './scraper/scraper.service';
         type: 'postgres',
         url: config.get<string>('DATABASE_URL'),
         autoLoadEntities: true,
-        synchronize: true, // ⚠️ dev only
+        synchronize: false, // ⚠️ dev only
         ssl: {
           rejectUnauthorized: false,
         },
