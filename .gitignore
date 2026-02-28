@@ -4,3 +4,7 @@ build
 .env
 .env.*
 .DS_Store
+frontend/node_modules
+api/node_modules
+frontend/dist
+api/dist
