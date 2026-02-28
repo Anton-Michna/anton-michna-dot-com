@@ -8,7 +8,11 @@ async function bootstrap() {
     origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   });
 
-  await app.listen(3000);
+  app.setGlobalPrefix('api');
+
+  const port = process.env.PORT || 3000;
+  await app.listen(port, '0.0.0.0');
 }
+
 // eslint-disable-next-line @typescript-eslint/no-floating-promises
 bootstrap();
