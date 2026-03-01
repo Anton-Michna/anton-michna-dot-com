@@ -1,3 +1,4 @@
+ARG CACHEBUST=1
 FROM node:20-alpine
 WORKDIR /app
 COPY api/ ./api/
