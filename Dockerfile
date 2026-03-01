@@ -6,5 +6,4 @@ RUN npm install
 RUN npm run build
 RUN ls -la dist/
 EXPOSE 8080
-RUN npm run migration:run
 CMD ["node", "dist/main.js"]
