@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ScraperService } from './scraper/scraper.service';
 import { AppController } from './app.controller';
+import { Team } from './entities/team.entity';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { AppController } from './app.controller';
         },
       }),
     }),
+    TypeOrmModule.forFeature([Team]),
   ],
   controllers: [AppController],
   providers: [ScraperService],
