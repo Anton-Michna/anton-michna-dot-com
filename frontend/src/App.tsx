@@ -4,9 +4,9 @@ function App() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/health`)
-      .then(res => res.json())
-      .then(data => setMessage(data.message))
+    fetch(`${import.meta.env.VITE_API_URL}/api/health`)
+      .then((res) => res.json())
+      .then((data) => setMessage(data.message))
       .catch(() => setMessage("API not reachable"));
   }, []);
 
