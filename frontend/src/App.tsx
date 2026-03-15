@@ -1,18 +1,31 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 function App() {
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/health`)
+  const handleScrape = () => {
+    setLoading(true);
+    setMessage("Scraping...");
+
+    fetch(`${import.meta.env.VITE_API_URL}/api/scrapeTest`)
       .then((res) => res.json())
-      .then((data) => setMessage(data.message))
-      .catch(() => setMessage("API not reachable"));
-  }, []);
+      .then((data) => {
+        setMessage(data.message || "Scrape completed!");
+        setLoading(false);
+      })
+      .catch(() => {
+        setMessage("API not reachable");
+        setLoading(false);
+      });
+  };
 
   return (
     <div>
-      <h1>My Full Stack App</h1>
+      <h1>Scrape Test</h1>
+      <button onClick={handleScrape} disabled={loading}>
+        {loading ? "Scraping..." : "Scrape Result"}
+      </button>
       <p>API says: {message}</p>
     </div>
   );

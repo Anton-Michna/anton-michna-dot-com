@@ -5,6 +5,9 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ScraperService } from './scraper/scraper.service';
 import { AppController } from './app.controller';
 import { Team } from './entities/team.entity';
+import { Athlete } from './entities/athlete.entity';
+import { Meet } from './entities/meet.entity';
+import { Result } from './entities/result.entity';
 
 @Module({
   imports: [
@@ -22,7 +25,7 @@ import { Team } from './entities/team.entity';
         },
       }),
     }),
-    TypeOrmModule.forFeature([Team]),
+    TypeOrmModule.forFeature([Team, Athlete, Meet, Result]),
   ],
   controllers: [AppController],
   providers: [ScraperService],
