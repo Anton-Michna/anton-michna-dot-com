@@ -5,6 +5,11 @@ import { ScraperService } from './scraper/scraper.service';
 export class AppController {
   constructor(private readonly scraperService: ScraperService) {}
 
+  @Get()
+  getRoot() {
+    return { message: 'API is running 🚀', status: 'ok' };
+  }
+
   @Get('health')
   getHealth() {
     return { message: 'API is healthy 🚀' };
