@@ -6,29 +6,11 @@ import { DataSource, Repository } from 'typeorm';
 import { Team } from '../entities/team.entity';
 import { Meet } from '../entities/meet.entity';
 import { Result } from '../entities/result.entity';
-
-export interface AthleteResult {
-  sport: string;
-  gender: string;
-  teamName: string;
-  meetName: string;
-  event: string;
-  time: string;
-  place: number;
-}
-
-export interface TopKAverageResult {
-  meetName: string;
-  averageTime: string; // MM:SS.ms format
-  athleteResults: SingleMeetAthleteResult[];
-}
-
-interface SingleMeetAthleteResult {
-  athleteName: string;
-  athleteId: number;
-  time: string;
-  place: number;
-}
+import {
+  AthleteResult,
+  SingleMeetAthleteResult,
+  TopKAverageResult,
+} from './data-types';
 
 @Injectable()
 export class DataService {
@@ -58,6 +40,58 @@ export class DataService {
       event: result.event,
       time: result.time,
       place: result.place,
+    }));
+  }
+
+  async searchTeams(
+    query: string,
+  ): Promise<{ id: number; name: string; gender: string; sport: string }[]> {
+    const teams = await this.teamRepository
+      .createQueryBuilder('team')
+      .select(['team.id', 'team.name', 'team.gender', 'team.sport'])
+      .where('LOWER(team.name) LIKE LOWER(:query)', { query: `%${query}%` })
+      .orderBy(
+        `CASE 
+          WHEN LOWER(team.name) = LOWER(:exactMatch) THEN 1
+          WHEN LOWER(team.name) LIKE LOWER(:startsWithMatch) THEN 2
+          ELSE 3
+        END`,
+      )
+      .addOrderBy('team.name', 'ASC')
+      .setParameter('exactMatch', query)
+      .setParameter('startsWithMatch', `${query}%`)
+      .limit(10)
+      .getMany();
+
+    return teams.map((team) => ({
+      id: team.id,
+      name: team.name,
+      gender: team.gender,
+      sport: team.sport,
+    }));
+  }
+
+  async searchAthletes(query: string): Promise<{ id: number; name: string }[]> {
+    const athletes = await this.athleteRepository
+      .createQueryBuilder('athlete')
+      .select(['athlete.id', 'athlete.name'])
+      .where('LOWER(athlete.name) LIKE LOWER(:query)', { query: `%${query}%` })
+      .orderBy(
+        `CASE 
+          WHEN LOWER(athlete.name) = LOWER(:exactMatch) THEN 1
+          WHEN LOWER(athlete.name) LIKE LOWER(:startsWithMatch) THEN 2
+          ELSE 3
+        END`,
+      )
+      .addOrderBy('athlete.name', 'ASC')
+      .setParameter('exactMatch', query)
+      .setParameter('startsWithMatch', `${query}%`)
+      .limit(10)
+      .getMany();
+
+    return athletes.map((athlete) => ({
+      id: athlete.id,
+      name: athlete.name,
     }));
   }
 
@@ -143,6 +177,17 @@ export class DataService {
         place: r.place,
       })),
     }));
+  }
+
+  async getTeamDistancePossibilities(teamId: number): Promise<string[]> {
+    const distances = await this.resultRepository
+      .createQueryBuilder('r')
+      .select('DISTINCT r.event', 'distance')
+      .innerJoin('r.team', 't')
+      .where('t.id = :teamId', { teamId })
+      .getRawMany<{ distance: string }>();
+
+    return distances.map((d) => d.distance);
   }
 
   private secondsToTime(seconds: number): string {

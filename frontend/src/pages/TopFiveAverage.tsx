@@ -1,32 +1,73 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import type {
-  GetFastestTeamAveragesResponse,
-  TopKAverageResult,
-} from "../types/api";
+import type { TopKAverageResult, Team } from "../types/api-types";
+import { SearchDropdown } from "../components/SearchDropdown";
+import * as api from "../services/api-endpoints";
 
-export const TopFiveAverage: React.FC = () => {
-  const [teamId, setTeamId] = useState("1");
+export const XcTopAverage: React.FC = () => {
+  const [teamId, setTeamId] = useState<number | undefined>(undefined);
+  const [distance, setDistance] = useState<string>("");
+  const [distancePossibilities, setDistancePossibilities] = useState<string[]>(
+    [],
+  );
+  const [athleteCount, setAthleteCount] = useState<5 | 7 | 9>(5);
+  const [resultCount, setResultCount] = useState<number>(10);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [averageResults, setAverageResults] = useState<
     TopKAverageResult[] | null
   >(null);
 
-  const handleAvTest = () => {
+  const fetchTeams = useCallback(async (query: string): Promise<Team[]> => {
+    return api.searchTeams(query);
+  }, []);
+
+  const handleTeamSelect = (team: Team) => {
+    setTeamId(team.id);
+  };
+
+  // Fetch distance possibilities when team is selected
+  useEffect(() => {
+    if (teamId) {
+      api
+        .getTeamDistancePossibilities(teamId)
+        .then((distances) => {
+          setDistancePossibilities(distances);
+          // Set first distance as default if available
+          if (distances.length > 0) {
+            setDistance(distances[0]);
+          }
+        })
+        .catch((error) => {
+          console.error("Get distance possibilities error:", error);
+        });
+    } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDistancePossibilities([]);
+      setDistance("");
+    }
+  }, [teamId]);
+
+  const hitTopAverageRoute = () => {
     if (!teamId) {
-      setMessage("Please enter a team ID");
+      setMessage("Please select a team");
+      return;
+    }
+
+    if (!distance) {
+      setMessage("Please select a distance");
       return;
     }
 
     setLoading(true);
     setMessage("Fetching average calculation...");
 
-    fetch(`${import.meta.env.VITE_API_URL}/api/getFastestTeamAverages`)
-      .then((res) => res.json())
-      .then((data: GetFastestTeamAveragesResponse) => {
+    api
+      .getFastestTeamAverages({ teamId, distance, athleteCount, resultCount })
+      .then((data) => {
         if (data.success && data.data) {
           setAverageResults(data.data);
+          setMessage("");
         } else {
           setMessage(data.message || "Average test failed");
         }
@@ -34,6 +75,7 @@ export const TopFiveAverage: React.FC = () => {
       })
       .catch((error) => {
         console.error("getFastestTeamAverages error:", error);
+        setMessage("API not reachable");
         setLoading(false);
       });
   };
@@ -45,18 +87,73 @@ export const TopFiveAverage: React.FC = () => {
 
       <div style={{ marginBottom: "20px", marginTop: "20px" }}>
         <div style={{ marginBottom: "10px" }}>
+          <SearchDropdown<Team>
+            onSelect={handleTeamSelect}
+            fetchResults={fetchTeams}
+            renderItem={(team) => (
+              <>
+                {team.name} ({team.gender === "Men" ? "M" : "F"}) (
+                {team.sport.toLowerCase() === "xc" ? "XC" : "TF"})
+              </>
+            )}
+            getItemKey={(team) => team.id}
+            getDisplayValue={(team) => team.name}
+            disabled={loading}
+            label="Team Name:"
+            placeholder="Search for a team..."
+          />
+        </div>
+        {teamId && distancePossibilities.length > 0 && (
+          <div style={{ marginBottom: "10px" }}>
+            <label>
+              Distance:{" "}
+              <select
+                value={distance}
+                onChange={(e) => setDistance(e.target.value)}
+                disabled={loading}
+                style={{ width: "150px", padding: "4px" }}
+              >
+                {distancePossibilities.map((dist) => (
+                  <option key={dist} value={dist}>
+                    {dist}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+        <div style={{ marginBottom: "10px" }}>
           <label>
-            Team ID:{" "}
-            <input
-              type="text"
-              value={teamId}
-              onChange={(e) => setTeamId(e.target.value)}
-              placeholder="e.g., 1"
+            Top Team Members:{" "}
+            <select
+              value={athleteCount}
+              onChange={(e) =>
+                setAthleteCount(Number(e.target.value) as 5 | 7 | 9)
+              }
               disabled={loading}
+              style={{ width: "100px", padding: "4px" }}
+            >
+              <option value={5}>5</option>
+              <option value={7}>7</option>
+              <option value={9}>9</option>
+            </select>
+          </label>
+        </div>
+        <div style={{ marginBottom: "10px" }}>
+          <label>
+            Number of Results:{" "}
+            <input
+              type="number"
+              value={resultCount}
+              onChange={(e) => setResultCount(Number(e.target.value))}
+              disabled={loading}
+              min="1"
+              max="100"
+              style={{ width: "100px", padding: "4px" }}
             />
           </label>
         </div>
-        <button onClick={handleAvTest} disabled={loading}>
+        <button onClick={hitTopAverageRoute} disabled={loading}>
           {loading ? "Loading..." : "Get Team Averages"}
         </button>
         {message && <p>{message}</p>}

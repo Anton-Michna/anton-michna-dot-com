@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import type {
-  GetAthleteResultsResponse,
-  GetAthleteResults,
-} from "../types/api";
+import type { GetAthleteResults } from "../types/api-types";
+import * as api from "../services/api-endpoints";
 
 export const Athlete: React.FC = () => {
   const { athleteId } = useParams<{ athleteId: string }>();
@@ -15,13 +13,12 @@ export const Athlete: React.FC = () => {
     setLoading(true);
     setMessage("Loading athlete results...");
 
-    fetch(
-      `${import.meta.env.VITE_API_URL}/api/getAthleteResults?athleteId=${id}`,
-    )
-      .then((res) => res.json())
-      .then((data: GetAthleteResultsResponse) => {
+    api
+      .getAthleteResults(id)
+      .then((data) => {
         if (data.success && data.data) {
           setResults(data.data);
+          setMessage("");
         } else {
           setMessage(data.message || "Failed to load athlete results");
           setResults(null);

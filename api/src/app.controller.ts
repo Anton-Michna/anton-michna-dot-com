@@ -96,14 +96,27 @@ export class AppController {
   }
 
   @Get('getFastestTeamAverages')
-  async getFastestTeamAverages() {
+  async getFastestTeamAverages(
+    @Query('teamId') teamId: string,
+    @Query('distance') distance: string,
+    @Query('athleteCount') athleteCount: 5 | 7 | 9,
+    @Query('resultCount') resultCount: number,
+  ) {
     try {
+      const idNum = Number(teamId);
+      if (isNaN(idNum) || idNum <= 0) {
+        return {
+          message: 'Invalid teamId parameter. Must be a positive number.',
+          success: false,
+        };
+      }
+
       const results = await this.dataService.getFastestTeamAverages({
-        teamId: 1,
-        distance: '8k',
+        teamId: idNum,
+        distance: distance || '8k',
         sport: 'xc',
-        athleteCount: 5,
-        resultCount: 2,
+        athleteCount,
+        resultCount,
       });
       return {
         message: 'Fastest team averages retrieved successfully!',
@@ -114,6 +127,32 @@ export class AppController {
       console.error('Fastest team averages error:', error);
       return {
         message: 'Fastest team averages retrieval failed',
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  @Get('getTeamDistancePossibilities')
+  async getTeamDistancePossibilities(@Query('teamId') teamId: string) {
+    try {
+      const idNum = Number(teamId);
+      if (isNaN(idNum) || idNum <= 0) {
+        return {
+          message: 'Invalid teamId parameter. Must be a positive number.',
+          success: false,
+        };
+      }
+      const distances =
+        await this.dataService.getTeamDistancePossibilities(idNum);
+      return {
+        success: true,
+        data: distances,
+      };
+    } catch (error) {
+      console.error('Get team distance possibilities error:', error);
+      return {
+        message: 'Failed to retrieve team distance possibilities',
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       };
@@ -140,6 +179,56 @@ export class AppController {
       console.error('Get athlete results error:', error);
       return {
         message: 'Failed to retrieve athlete results',
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  @Get('searchTeams')
+  async searchTeams(@Query('query') query: string) {
+    try {
+      if (!query || query.trim().length < 2) {
+        return {
+          message: 'Query must be at least 2 characters',
+          success: false,
+          data: [],
+        };
+      }
+      const teams = await this.dataService.searchTeams(query.trim());
+      return {
+        success: true,
+        data: teams,
+      };
+    } catch (error) {
+      console.error('Search teams error:', error);
+      return {
+        message: 'Failed to search teams',
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  @Get('searchAthletes')
+  async searchAthletes(@Query('query') query: string) {
+    try {
+      if (!query || query.trim().length < 2) {
+        return {
+          message: 'Query must be at least 2 characters',
+          success: false,
+          data: [],
+        };
+      }
+      const athletes = await this.dataService.searchAthletes(query.trim());
+      return {
+        success: true,
+        data: athletes,
+      };
+    } catch (error) {
+      console.error('Search athletes error:', error);
+      return {
+        message: 'Failed to search athletes',
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       };

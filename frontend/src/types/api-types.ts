@@ -36,3 +36,29 @@ export interface GetAthleteResults {
   time: string;
   place: number;
 }
+
+export interface Team {
+  id: number;
+  name: string;
+  gender: string;
+  sport: string;
+}
+
+export interface SearchTeamsResponse {
+  success: boolean;
+  data?: Team[];
+  message?: string;
+  error?: string;
+}
+
+export interface Athlete {
+  id: number;
+  name: string;
+}
+
+export interface SearchAthletesResponse {
+  success: boolean;
+  data?: Athlete[];
+  message?: string;
+  error?: string;
+}
