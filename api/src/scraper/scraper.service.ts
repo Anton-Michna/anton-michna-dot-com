@@ -12,11 +12,8 @@ import { Meet } from '../entities/meet.entity';
 import { Result } from '../entities/result.entity';
 import { AnyNode } from 'domhandler';
 
-const SEARCH_RESULT_URL_START =
-  'https://www.tfrrs.org/results_search_page.html?page=';
-
-const SEARCH_RESULT_URL_END =
-  '&search_query=&with_month=&with_sports=xc&with_states=&with_year=';
+const TFFRS_SEARCH_RESULT_URL =
+  'https://www.tfrrs.org/results_search_page.html';
 
 const RESULTS_BASE_URL = 'https://www.tfrrs.org';
 
@@ -24,6 +21,7 @@ export interface SearchPageScrapeResults {
   raceName: string;
   raceDate: string;
   urlToResults: string;
+  sourceTffrsMeetId: string;
 }
 
 export interface TeamData {
@@ -57,6 +55,11 @@ export interface ResultData {
 
 @Injectable()
 export class ScraperService {
+  // Cache for database lookups
+  private teamCache = new Map<string, Team>();
+  private athleteCache = new Map<string, Athlete>();
+  private meetCache = new Map<string, Meet>();
+
   constructor(
     @InjectRepository(Athlete)
     private athleteRepository: Repository<Athlete>,
@@ -75,20 +78,100 @@ export class ScraperService {
   }
 
   async getMeetById(sourceTffrsMeetId: string): Promise<Meet | null> {
-    return await this.meetRepository.findOne({
+    // Check cache first
+    if (this.meetCache.has(sourceTffrsMeetId)) {
+      return this.meetCache.get(sourceTffrsMeetId)!;
+    }
+    const meet = await this.meetRepository.findOne({
       where: { sourceTffrsMeetId },
     });
+
+    // Store in cache if found
+    if (meet) {
+      this.meetCache.set(sourceTffrsMeetId, meet);
+    }
+
+    return meet;
+  }
+
+  async fullScrapeXcResults(params: { month?: string; year?: string }) {
+    const { month, year } = params;
+    const totalPages = await this.getTotalXcPagesByMonth(month, year);
+
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      const urls = await this.getResultUrlsFromList({ pageNum, month, year });
+
+      const MEET_BATCH_SIZE = 5;
+      for (let i = 0; i < urls.length; i += MEET_BATCH_SIZE) {
+        const batch = urls.slice(i, i + MEET_BATCH_SIZE);
+
+        await Promise.all(
+          batch.map(async (vals) => {
+            const meet = await this.getMeetById(vals.sourceTffrsMeetId);
+            if (!meet) {
+              console.warn(
+                `Meet with sourceTffrsMeetId ${vals.sourceTffrsMeetId} not found, skipping scrape for this meet.`,
+              );
+              return;
+            }
+            await this.scrapeFullIndividualXcRaceResults({
+              vals,
+              meet,
+            });
+          }),
+        );
+      }
+    }
+  }
+
+  async getTotalXcPagesByMonth(month?: string, year?: string): Promise<number> {
+    const searchUrl =
+      TFFRS_SEARCH_RESULT_URL +
+      this.buildSearchUrlEnd({
+        month,
+        year,
+        sport: 'xc',
+      });
+
+    const response = await makeHttpRequest(searchUrl, 'GET');
+    const dom = parser.parseDocument(response.data);
+
+    const numResultsDiv = selectOne(
+      '.card.card-body.bg-light.d-block.p-3.my-3',
+      dom,
+    );
+
+    let numResults = '';
+
+    if (numResultsDiv) {
+      const bTags = selectAll('b', numResultsDiv);
+      if (bTags[1]) {
+        const numRow = bTags[1];
+        numResults = parser.DomUtils.textContent(numRow);
+      }
+    }
+
+    if (numResults === '') {
+      return 0;
+    }
+    const numPages = Math.ceil(parseInt(numResults) / 30);
+    return numPages;
   }
 
   async getResultUrlsFromList(params: {
     pageNum: number;
-    teamName: string;
-    gender: string;
+    month?: string;
+    year?: string;
   }): Promise<SearchPageScrapeResults[]> {
-    const { pageNum } = params;
-
+    const { pageNum, month, year } = params;
     const urlToScrape =
-      SEARCH_RESULT_URL_START + pageNum + SEARCH_RESULT_URL_END;
+      TFFRS_SEARCH_RESULT_URL +
+      this.buildSearchUrlEnd({
+        month,
+        year,
+        sport: 'xc',
+        page: pageNum,
+      });
 
     const searchPageListResponse = await makeHttpRequest(urlToScrape, 'GET');
     const dom = parser.parseDocument(searchPageListResponse.data);
@@ -107,8 +190,11 @@ export class ScraperService {
         }
 
         let url = '';
+        let sourceTffrsMeetId = '';
         if (valueRow?.attribs['href'].includes('/xc/')) {
           url = RESULTS_BASE_URL + valueRow?.attribs['href'];
+          const match = valueRow.attribs['href'].match(/\/xc\/(\d+)/);
+          sourceTffrsMeetId = match ? match[1] : '';
         }
 
         let raceName = '';
@@ -116,11 +202,25 @@ export class ScraperService {
           raceName = parser.DomUtils.textContent(valueRow);
         }
 
-        return { raceName: raceName, raceDate: date, urlToResults: url };
+        return {
+          raceName: raceName,
+          raceDate: date,
+          urlToResults: url,
+          sourceTffrsMeetId,
+        };
       })
       .filter((val) => val.urlToResults !== '')
       .filter((val) => val.raceDate !== '')
       .filter((val) => val.raceName !== '');
+
+    const meetsToSave: MeetData[] = raceNameDateUrl.map((result) => ({
+      sourceTffrsMeetId: result.sourceTffrsMeetId,
+      name: result.raceName,
+      date: result.raceDate,
+    }));
+
+    await this.upsertMeets(meetsToSave);
+    console.log(`Page ${pageNum}: Meets finished upserting.`);
 
     return raceNameDateUrl;
   }
@@ -138,10 +238,6 @@ export class ScraperService {
 
     const genders = ['Men', 'Women'] as const;
 
-    const fullUpsertableTeams: TeamData[] = [];
-    const fullUpsertableAthletes: AthleteData[] = [];
-    const fullResultsToSave: ResultData[] = [];
-
     for (const gender of genders) {
       const { resultsToSave, upsertableAthletes, upsertableTeams } =
         this.scrapeGenderedMeetResults(dom, params.meet, gender) || {
@@ -150,17 +246,19 @@ export class ScraperService {
           upsertableTeams: [],
         };
 
-      fullResultsToSave.push(...resultsToSave);
-      fullUpsertableAthletes.push(...upsertableAthletes);
-      fullUpsertableTeams.push(...upsertableTeams);
+      await this.upsertTeams(upsertableTeams);
+      console.log(
+        `${gender} Teams for meet ${params.meet.name} finished upserting.`,
+      );
+      await this.upsertAthletes(upsertableAthletes);
+      console.log(
+        `${gender} Athletes for meet ${params.meet.name} finished upserting.`,
+      );
+      await this.upsertResults(resultsToSave);
+      console.log(
+        `${gender} Results for meet ${params.meet.name} finished upserting.`,
+      );
     }
-
-    await this.upsertTeams(fullUpsertableTeams);
-    console.log('Teams finished upserting.');
-    await this.upsertAthletes(fullUpsertableAthletes);
-    console.log('Athletes finished upserting.');
-    await this.upsertResults(fullResultsToSave);
-    console.log('Results finished upserting.');
   }
 
   private scrapeGenderedMeetResults(
@@ -238,6 +336,10 @@ export class ScraperService {
         if (!teamValue) {
           continue;
         }
+        // Id is only numbers when club team or unattached. skip those
+        if (typeof teamValue === 'string' && /^\d+$/.test(teamValue)) {
+          continue;
+        }
 
         const teamName = parser.DomUtils.textContent(teamLink);
         upsertableTeams.push({
@@ -311,39 +413,74 @@ export class ScraperService {
   async upsertTeam(teamData: TeamData) {
     const { sourceTffrsId, name, gender, sport } = teamData;
 
+    if (this.teamCache.has(sourceTffrsId)) {
+      return this.teamCache.get(sourceTffrsId)!;
+    }
+
     const existingTeam = await this.teamRepository.findOne({
       where: { sourceTffrsId },
     });
 
-    if (existingTeam) {
-      existingTeam.name = name;
-      existingTeam.gender = gender;
-      existingTeam.sport = sport;
-      return await this.teamRepository.save(existingTeam);
-    } else {
+    if (!existingTeam) {
       const newTeam = this.teamRepository.create({
         sourceTffrsId,
         name,
         gender,
         sport,
       });
-      return await this.teamRepository.save(newTeam);
+      const savedTeam = await this.teamRepository.save(newTeam);
+      this.teamCache.set(sourceTffrsId, savedTeam);
+      return savedTeam;
+    } else {
+      this.teamCache.set(sourceTffrsId, existingTeam);
+      return existingTeam;
     }
   }
 
   async upsertTeams(teamsData: TeamData[]) {
-    for (const teamData of teamsData) {
-      await this.upsertTeam(teamData);
-    }
+    if (teamsData.length === 0) return;
+
+    await this.teamRepository.upsert(
+      teamsData.map((data) => ({
+        sourceTffrsId: data.sourceTffrsId,
+        name: data.name,
+        gender: data.gender,
+        sport: data.sport,
+      })),
+      ['sourceTffrsId'], // conflict target
+    );
+
+    // Update cache with newly upserted teams
+    const upsertedTeams = await this.teamRepository.find({
+      where: teamsData.map((data) => ({
+        sourceTffrsId: data.sourceTffrsId,
+      })),
+    });
+
+    upsertedTeams.forEach((team) => {
+      this.teamCache.set(team.sourceTffrsId, team);
+    });
   }
 
   async upsertAthlete(athleteData: AthleteData) {
     const { sourceTffrsAthleteId, name, sport, sourceTffrsTeamId } =
       athleteData;
 
-    const team = await this.teamRepository.findOne({
-      where: { sourceTffrsId: sourceTffrsTeamId },
-    });
+    if (this.athleteCache.has(sourceTffrsAthleteId)) {
+      return this.athleteCache.get(sourceTffrsAthleteId)!;
+    }
+
+    // Get team from cache or database
+    let team = this.teamCache.get(sourceTffrsTeamId);
+    if (!team) {
+      const foundTeam = await this.teamRepository.findOne({
+        where: { sourceTffrsId: sourceTffrsTeamId },
+      });
+      if (foundTeam) {
+        team = foundTeam;
+        this.teamCache.set(sourceTffrsTeamId, foundTeam);
+      }
+    }
 
     if (!team) {
       console.warn(
@@ -357,26 +494,99 @@ export class ScraperService {
       relations: ['team'],
     });
 
-    if (existingAthlete) {
-      existingAthlete.name = name;
-      existingAthlete.sport = sport;
-      existingAthlete.team = team;
-      return await this.athleteRepository.save(existingAthlete);
-    } else {
+    if (!existingAthlete) {
       const newAthlete = this.athleteRepository.create({
         sourceTffrsAthleteId,
         name,
         sport,
         team,
       });
-      return await this.athleteRepository.save(newAthlete);
+      const savedAthlete = await this.athleteRepository.save(newAthlete);
+      this.athleteCache.set(sourceTffrsAthleteId, savedAthlete);
+      return savedAthlete;
+    } else {
+      this.athleteCache.set(sourceTffrsAthleteId, existingAthlete);
+      return existingAthlete;
     }
   }
 
   async upsertAthletes(athletesData: AthleteData[]) {
-    for (const athleteData of athletesData) {
-      await this.upsertAthlete(athleteData);
+    if (athletesData.length === 0) return;
+
+    // --- Fetch all relevant teams ---
+    const teamIds = [...new Set(athletesData.map((a) => a.sourceTffrsTeamId))];
+    const teams = await this.teamRepository.find({
+      where: teamIds.map((id) => ({ sourceTffrsId: id })),
+    });
+
+    // --- Create team lookup map ---
+    const teamMap = new Map(teams.map((t) => [String(t.sourceTffrsId), t.id]));
+
+    // Update team cache
+    teams.forEach((team) => this.teamCache.set(team.sourceTffrsId, team));
+
+    // --- Filter valid athletes ---
+    const validAthletes = athletesData
+      .filter((athlete) => {
+        const hasValidTeam = teamMap.has(String(athlete.sourceTffrsTeamId));
+        if (!hasValidTeam) {
+          console.warn(
+            `Team with sourceTffrsId ${athlete.sourceTffrsTeamId} not found, skipping athlete.`,
+          );
+        }
+        return hasValidTeam;
+      })
+      .map((athlete) => ({
+        sourceTffrsAthleteId: String(athlete.sourceTffrsAthleteId),
+        name: athlete.name,
+        sport: athlete.sport,
+        team: { id: teamMap.get(String(athlete.sourceTffrsTeamId))! },
+      }));
+
+    if (validAthletes.length === 0) return;
+
+    // --- Deduplicate athletes ---
+    const athleteMap = new Map<string, (typeof validAthletes)[0]>();
+    validAthletes.forEach((athlete) => {
+      const key = athlete.sourceTffrsAthleteId;
+      if (athleteMap.has(key)) {
+        console.warn(
+          `Duplicate athlete detected: ID=${key}, Name=${athlete.name}`,
+        );
+      } else {
+        athleteMap.set(key, athlete);
+      }
+    });
+
+    const uniqueAthletes = Array.from(athleteMap.values());
+
+    if (uniqueAthletes.length < validAthletes.length) {
+      console.warn(
+        `Removed ${validAthletes.length - uniqueAthletes.length} duplicate athletes`,
+      );
+      const removedIds = validAthletes
+        .map((a) => a.sourceTffrsAthleteId)
+        .filter((id) => !athleteMap.has(id));
+      console.warn(`Duplicate athlete IDs removed: ${removedIds.join(', ')}`);
     }
+
+    // --- Bulk upsert ---
+    await this.athleteRepository.upsert(uniqueAthletes, [
+      'sourceTffrsAthleteId',
+    ]);
+
+    // --- Update cache with newly upserted athletes ---
+    const upsertedAthletes = await this.athleteRepository.find({
+      where: uniqueAthletes.map((a) => ({
+        sourceTffrsAthleteId: a.sourceTffrsAthleteId,
+      })),
+    });
+
+    upsertedAthletes.forEach((athlete) =>
+      this.athleteCache.set(athlete.sourceTffrsAthleteId, athlete),
+    );
+
+    console.log(`Upserted ${upsertedAthletes.length} athletes successfully.`);
   }
 
   async upsertMeet(meetData: MeetData) {
@@ -386,11 +596,7 @@ export class ScraperService {
       where: { sourceTffrsMeetId },
     });
 
-    if (existingMeet) {
-      existingMeet.name = name;
-      existingMeet.date = date;
-      return await this.meetRepository.save(existingMeet);
-    } else {
+    if (!existingMeet) {
       const newMeet = this.meetRepository.create({
         sourceTffrsMeetId,
         name,
@@ -398,6 +604,30 @@ export class ScraperService {
       });
       return await this.meetRepository.save(newMeet);
     }
+  }
+
+  async upsertMeets(meetsData: MeetData[]) {
+    if (meetsData.length === 0) return;
+
+    await this.meetRepository.upsert(
+      meetsData.map((data) => ({
+        sourceTffrsMeetId: data.sourceTffrsMeetId,
+        name: data.name,
+        date: data.date,
+      })),
+      ['sourceTffrsMeetId'], // conflict target
+    );
+
+    // Update cache with newly upserted meets
+    const upsertedMeets = await this.meetRepository.find({
+      where: meetsData.map((data) => ({
+        sourceTffrsMeetId: data.sourceTffrsMeetId,
+      })),
+    });
+
+    upsertedMeets.forEach((meet) => {
+      this.meetCache.set(meet.sourceTffrsMeetId, meet);
+    });
   }
 
   async upsertResult(resultData: ResultData) {
@@ -451,15 +681,7 @@ export class ScraperService {
       relations: ['meet', 'athlete', 'team'],
     });
 
-    if (existingResult) {
-      existingResult.time = time;
-      existingResult.place = place;
-      existingResult.team = team;
-      existingResult.meet = meet;
-      existingResult.athlete = athlete;
-      existingResult.sourceTffrsTeamId = sourceTffrsTeamId;
-      return await this.resultRepository.save(existingResult);
-    } else {
+    if (!existingResult) {
       const newResult = this.resultRepository.create({
         meet,
         athlete,
@@ -476,9 +698,151 @@ export class ScraperService {
   }
 
   async upsertResults(resultsData: ResultData[]) {
-    for (const resultData of resultsData) {
-      await this.upsertResult(resultData);
+    if (resultsData.length === 0) return;
+
+    // --- Fetch referenced entities ---
+    const meetIds = [
+      ...new Set(resultsData.map((r) => String(r.sourceTffrsMeetId))),
+    ];
+    const athleteIds = [
+      ...new Set(resultsData.map((r) => String(r.sourceTffrsAthleteId))),
+    ];
+    const teamIds = [
+      ...new Set(resultsData.map((r) => String(r.sourceTffrsTeamId))),
+    ];
+
+    const [meets, athletes, teams] = await Promise.all([
+      this.meetRepository.find({
+        where: meetIds.map((id) => ({ sourceTffrsMeetId: id })),
+      }),
+      this.athleteRepository.find({
+        where: athleteIds.map((id) => ({ sourceTffrsAthleteId: id })),
+      }),
+      this.teamRepository.find({
+        where: teamIds.map((id) => ({ sourceTffrsId: id })),
+      }),
+    ]);
+
+    // --- Create lookup maps (all IDs as strings) ---
+    const meetMap = new Map(
+      meets.map((m) => [String(m.sourceTffrsMeetId), m.id]),
+    );
+    const athleteMap = new Map(
+      athletes.map((a) => [String(a.sourceTffrsAthleteId), a.id]),
+    );
+    const teamMap = new Map(teams.map((t) => [String(t.sourceTffrsId), t.id]));
+
+    // --- Filter valid results ---
+    const validResults = resultsData
+      .filter((r) => {
+        const meetId = String(r.sourceTffrsMeetId ?? 'MISSING');
+        const athleteId = String(r.sourceTffrsAthleteId ?? 'MISSING');
+        const teamId = String(r.sourceTffrsTeamId ?? 'MISSING');
+
+        const hasValidRefs =
+          meetMap.has(meetId) &&
+          athleteMap.has(athleteId) &&
+          teamMap.has(teamId);
+
+        if (!hasValidRefs) {
+          console.warn(
+            `Skipping result - missing reference: meet=${meetId}, athlete=${athleteId}, team=${teamId}`,
+          );
+        }
+        return hasValidRefs;
+      })
+      .map((r) => {
+        const meetId = String(r.sourceTffrsMeetId);
+        const athleteId = String(r.sourceTffrsAthleteId);
+        const teamId = String(r.sourceTffrsTeamId);
+
+        return {
+          meet: { id: meetMap.get(meetId)! },
+          athlete: { id: athleteMap.get(athleteId)! },
+          team: { id: teamMap.get(teamId)! },
+          sourceTffrsMeetId: meetId,
+          sourceTffrsAthleteId: athleteId,
+          sourceTffrsTeamId: teamId,
+          event: r.event,
+          time: r.time,
+          place: r.place,
+        };
+      });
+
+    if (validResults.length === 0) return;
+
+    // --- Deduplicate results ---
+    const resultMap = new Map<string, (typeof validResults)[0]>();
+    validResults.forEach((r) => {
+      const key = `${r.sourceTffrsMeetId}-${r.sourceTffrsAthleteId}-${r.event}`;
+      if (resultMap.has(key)) {
+        console.warn(
+          `Duplicate result detected: MeetID=${r.sourceTffrsMeetId}, AthleteID=${r.sourceTffrsAthleteId}, TeamID=${r.sourceTffrsTeamId}, Event=${r.event}, Time=${r.time}, Place=${r.place}`,
+        );
+      } else {
+        resultMap.set(key, r);
+      }
+    });
+
+    const uniqueResults = Array.from(resultMap.values());
+
+    if (uniqueResults.length < validResults.length) {
+      console.warn(
+        `Removed ${validResults.length - uniqueResults.length} duplicate results`,
+      );
+
+      const removedKeys = validResults
+        .map(
+          (r) => `${r.sourceTffrsMeetId}-${r.sourceTffrsAthleteId}-${r.event}`,
+        )
+        .filter((key) => !resultMap.has(key));
+
+      console.warn(`Duplicate result keys removed: ${removedKeys.join(', ')}`);
     }
+
+    // --- Bulk upsert ---
+    await this.resultRepository.upsert(uniqueResults, {
+      conflictPaths: ['sourceTffrsMeetId', 'sourceTffrsAthleteId', 'event'],
+    });
+
+    console.log(`Upserted ${uniqueResults.length} results successfully.`);
+  }
+
+  private buildSearchUrlEnd(params: {
+    month?: string;
+    year?: string;
+    sport?: string;
+    page?: number;
+  }): string {
+    const { month, year, sport, page } = params;
+    const pageParam = page ? `page=${page}&` : '';
+    return `?${pageParam}search_query=&with_month=${month || ''}&with_sports=${sport || ''}&with_states=&with_year=${year || ''}`;
+  }
+
+  async getEarliestData(): Promise<{
+    earliestMonth: string | null;
+    earliestYear: string | null;
+  }> {
+    const earliestMeets = await this.meetRepository.find({
+      order: {
+        date: 'ASC',
+      },
+      take: 1,
+    });
+
+    if (!earliestMeets || earliestMeets.length === 0) {
+      return { earliestMonth: null, earliestYear: null };
+    }
+
+    const earliestMeet = earliestMeets[0];
+    const dateParts = earliestMeet.date.split('/');
+    if (dateParts.length >= 3) {
+      const month = dateParts[0]; // Month
+      const year = dateParts[2]; // Year
+      return { earliestMonth: month, earliestYear: year };
+    }
+
+    return { earliestMonth: null, earliestYear: null };
   }
 
   private async scrapeWebsite() {

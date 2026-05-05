@@ -1,9 +1,13 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ScraperService } from './scraper/scraper.service';
+import { DataService } from './data/data.service';
 
 @Controller()
 export class AppController {
-  constructor(private readonly scraperService: ScraperService) {}
+  constructor(
+    private readonly scraperService: ScraperService,
+    private readonly dataService: DataService,
+  ) {}
 
   @Get()
   getRoot() {
@@ -15,30 +19,57 @@ export class AppController {
     return { message: 'API is healthy 🚀' };
   }
 
-  @Get('scrapeTest')
-  async scrapeTest() {
+  @Get('earliestMeet')
+  async getEarliestMeet() {
     try {
-      // const testDummy: SearchPageScrapeResults = {
-      //   raceName: 'NCAA Division I Cross Country Championships',
-      //   raceDate: '11/22/25',
-      //   urlToResults:
-      //     'https://www.tfrrs.org/results/xc/27301/NCAA_Division_I_Cross_Country_Championships',
-      // };
+      const data = await this.scraperService.getEarliestData();
+      return {
+        message: 'Earliest data retrieved',
+        success: true,
+        earliestMonth: data.earliestMonth,
+        earliestYear: data.earliestYear,
+      };
+    } catch (error) {
+      console.error('Error fetching earliest meet:', error);
+      return {
+        message: 'Error fetching earliest meet',
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
 
-      const meet = await this.scraperService.getMeetById('27301');
-      console.log('Meet found:', meet);
-
-      if (!meet) {
-        console.error('Meet not found');
-        return { message: 'Meet not found', success: false };
+  @Get('scrapeXcResults')
+  async scrapeXcResults(
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
+    try {
+      if (month) {
+        const monthNum = Number(month);
+        if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+          return {
+            message:
+              'Invalid month parameter. Must be a number between 1 and 12.',
+            success: false,
+          };
+        }
       }
-
-      // await this.scraperService.scrapeFullIndividualXcRaceResults({
-      //   vals: testDummy,
-      //   meet,
-      // });
-
-      return { message: 'Scrape completed successfully!', success: true };
+      if (year) {
+        const yearNum = Number(year);
+        if (isNaN(yearNum) || yearNum < 1900 || yearNum > 2100) {
+          return {
+            message:
+              'Invalid year parameter. Must be a valid year between 1900 and 2100.',
+            success: false,
+          };
+        }
+      }
+      await this.scraperService.fullScrapeXcResults({ month, year });
+      return {
+        message: `Scrape completed for month: ${month || 'all'}, year: ${year || 'all'}`,
+        success: true,
+      };
     } catch (error) {
       console.error('Scrape error:', error);
       return {
@@ -48,4 +79,73 @@ export class AppController {
       };
     }
   }
+
+  @Get('scrapeAll')
+  async scrapeAll() {
+    try {
+      await this.scraperService.fullScrapeXcResults({});
+      return { message: 'Full scrape completed successfully!', success: true };
+    } catch (error) {
+      console.error('Scrape all error:', error);
+      return {
+        message: 'Scrape all failed',
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  @Get('getFastestTeamAverages')
+  async getFastestTeamAverages() {
+    try {
+      const results = await this.dataService.getFastestTeamAverages({
+        teamId: 1,
+        distance: '8k',
+        sport: 'xc',
+        athleteCount: 5,
+        resultCount: 2,
+      });
+      return {
+        message: 'Fastest team averages retrieved successfully!',
+        success: true,
+        data: results,
+      };
+    } catch (error) {
+      console.error('Fastest team averages error:', error);
+      return {
+        message: 'Fastest team averages retrieval failed',
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  @Get('getAthleteResults')
+  async getAthleteResults(@Query('athleteId') athleteId: string) {
+    try {
+      const idNum = Number(athleteId);
+      if (isNaN(idNum) || idNum <= 0) {
+        return {
+          message: 'Invalid athleteId parameter. Must be a positive number.',
+          success: false,
+        };
+      }
+      const results = await this.dataService.getAthleteResults(idNum);
+      return {
+        message: 'Athlete results retrieved successfully!',
+        success: true,
+        data: results,
+      };
+    } catch (error) {
+      console.error('Get athlete results error:', error);
+      return {
+        message: 'Failed to retrieve athlete results',
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
 }
+//workflow
+//scrape all meet names and urls from tffrs
+//go into each meet and scrape the individual results

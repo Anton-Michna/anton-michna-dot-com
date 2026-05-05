@@ -8,6 +8,7 @@ import { Team } from './entities/team.entity';
 import { Athlete } from './entities/athlete.entity';
 import { Meet } from './entities/meet.entity';
 import { Result } from './entities/result.entity';
+import { DataService } from './data/data.service';
 
 @Module({
   imports: [
@@ -28,6 +29,6 @@ import { Result } from './entities/result.entity';
     TypeOrmModule.forFeature([Team, Athlete, Meet, Result]),
   ],
   controllers: [AppController],
-  providers: [ScraperService],
+  providers: [ScraperService, DataService],
 })
 export class AppModule {}
