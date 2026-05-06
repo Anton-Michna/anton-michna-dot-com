@@ -18,8 +18,8 @@ export class Meet {
   @Column()
   name: string;
 
-  @Column()
-  date: string;
+  @Column({ type: 'date' })
+  date: Date;
 
   @CreateDateColumn()
   createdAt: Date;

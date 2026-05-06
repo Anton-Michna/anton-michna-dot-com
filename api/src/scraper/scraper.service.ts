@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-enum-comparison */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -41,7 +43,7 @@ export interface AthleteData {
 export interface MeetData {
   sourceTffrsMeetId: string;
   name: string;
-  date: string;
+  date: Date;
 }
 
 export interface ResultData {
@@ -50,6 +52,7 @@ export interface ResultData {
   sourceTffrsTeamId: string;
   event: string;
   time: string;
+  timeSeconds: number | null;
   place: number;
 }
 
@@ -145,9 +148,10 @@ export class ScraperService {
 
     if (numResultsDiv) {
       const bTags = selectAll('b', numResultsDiv);
-      if (bTags[1]) {
-        const numRow = bTags[1];
-        numResults = parser.DomUtils.textContent(numRow);
+      if (bTags.length > 0) {
+        const numRow = bTags.length > 1 ? bTags[1] : bTags[0];
+        const textContent = parser.DomUtils.textContent(numRow);
+        numResults = textContent.replace(/\D/g, ''); // Remove all non-digit characters
       }
     }
 
@@ -213,11 +217,42 @@ export class ScraperService {
       .filter((val) => val.raceDate !== '')
       .filter((val) => val.raceName !== '');
 
-    const meetsToSave: MeetData[] = raceNameDateUrl.map((result) => ({
-      sourceTffrsMeetId: result.sourceTffrsMeetId,
-      name: result.raceName,
-      date: result.raceDate,
-    }));
+    const meetsToSave: MeetData[] = raceNameDateUrl
+      .map((result) => {
+        // Convert date string "MM/DD/YY" to Date object
+        const parts = result.raceDate.split('/');
+        if (parts.length !== 3) {
+          console.warn(`Invalid date format: "${result.raceDate}"`);
+          return null;
+        }
+
+        const [month, day, year] = parts;
+        const yearNum = parseInt(year, 10);
+
+        if (isNaN(yearNum)) {
+          console.warn(`Invalid year in date: "${result.raceDate}"`);
+          return null;
+        }
+
+        const fullYear = yearNum < 50 ? `20${year}` : `19${year}`;
+        const isoDate = `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        const date = new Date(isoDate);
+
+        // Check if the Date is valid
+        if (isNaN(date.getTime())) {
+          console.warn(
+            `Invalid date created from: "${result.raceDate}" -> "${isoDate}"`,
+          );
+          return null;
+        }
+
+        return {
+          sourceTffrsMeetId: result.sourceTffrsMeetId,
+          name: result.raceName,
+          date,
+        };
+      })
+      .filter((meet): meet is MeetData => meet !== null);
 
     await this.upsertMeets(meetsToSave);
     console.log(`Page ${pageNum}: Meets finished upserting.`);
@@ -374,19 +409,13 @@ export class ScraperService {
             ? parseInt(placeText, 10)
             : 0;
 
-        const result: {
-          sourceTffrsMeetId: string;
-          sourceTffrsAthleteId: string;
-          sourceTffrsTeamId: string;
-          event: string;
-          time: string;
-          place: number;
-        } = {
+        const result: ResultData = {
           sourceTffrsMeetId: meet.sourceTffrsMeetId.toString(),
           sourceTffrsAthleteId: athleteId,
           sourceTffrsTeamId: teamValue,
           event,
           time,
+          timeSeconds: this.timeStringToSeconds(time),
           place,
         };
 
@@ -637,6 +666,7 @@ export class ScraperService {
       sourceTffrsTeamId,
       event,
       time,
+      timeSeconds,
       place,
     } = resultData;
     const meet = await this.meetRepository.findOne({
@@ -691,6 +721,7 @@ export class ScraperService {
         sourceTffrsTeamId,
         event,
         time,
+        timeSeconds,
         place,
       });
       return await this.resultRepository.save(newResult);
@@ -765,6 +796,7 @@ export class ScraperService {
           sourceTffrsTeamId: teamId,
           event: r.event,
           time: r.time,
+          timeSeconds: r.timeSeconds,
           place: r.place,
         };
       });
@@ -834,15 +866,38 @@ export class ScraperService {
       return { earliestMonth: null, earliestYear: null };
     }
 
-    const earliestMeet = earliestMeets[0];
-    const dateParts = earliestMeet.date.split('/');
-    if (dateParts.length >= 3) {
-      const month = dateParts[0]; // Month
-      const year = dateParts[2]; // Year
-      return { earliestMonth: month, earliestYear: year };
+    const earliestDate = new Date(earliestMeets[0].date);
+    const month = (earliestDate.getUTCMonth() + 1).toString();
+    const year = earliestDate.getUTCFullYear().toString();
+
+    return { earliestMonth: month, earliestYear: year };
+  }
+
+  private timeStringToSeconds(timeStr: string): number | null {
+    // Handle special cases like DNF, DNS, DQ
+    if (['DNF', 'DNS', 'DQ'].includes(timeStr)) {
+      return null;
     }
 
-    return { earliestMonth: null, earliestYear: null };
+    try {
+      // Parse time string in format "MM:SS.ss" or "M:SS.ss"
+      const parts = timeStr.split(':');
+      if (parts.length !== 2) {
+        return null;
+      }
+
+      const minutes = parseFloat(parts[0]);
+      const seconds = parseFloat(parts[1]);
+
+      if (isNaN(minutes) || isNaN(seconds)) {
+        return null;
+      }
+
+      return minutes * 60 + seconds;
+    } catch (error) {
+      console.error(`Error parsing time string "${timeStr}":`, error);
+      return null;
+    }
   }
 
   private async scrapeWebsite() {

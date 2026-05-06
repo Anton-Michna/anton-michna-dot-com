@@ -49,6 +49,10 @@ export class Result {
   @Column()
   time: string;
 
+  @Column({ type: 'float', nullable: true })
+  @Index()
+  timeSeconds: number | null;
+
   @Column()
   place: number;
 

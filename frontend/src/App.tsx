@@ -10,6 +10,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [earliestMonth, setEarliestMonth] = useState<string | null>(null);
   const [earliestYear, setEarliestYear] = useState<string | null>(null);
+  // const [month, setMonth] = useState("");
+  // const [year, setYear] = useState("");
 
   const fetchAthletes = useCallback(
     async (query: string): Promise<Athlete[]> => {
@@ -114,3 +116,38 @@ function App() {
 }
 
 export default App;
+
+// <div style={{ marginBottom: "20px" }}>
+//   <h2>Scrape XC Results</h2>
+//   <div style={{ marginBottom: "10px" }}>
+//     <label>
+//       Month (1-12):{" "}
+//       <input
+//         type="number"
+//         value={month}
+//         onChange={(e) => setMonth(e.target.value)}
+//         disabled={loading}
+//         min="1"
+//         max="12"
+//         placeholder="Optional"
+//         style={{ width: "100px", padding: "4px", marginRight: "10px" }}
+//       />
+//     </label>
+//     <label>
+//       Year:{" "}
+//       <input
+//         type="number"
+//         value={year}
+//         onChange={(e) => setYear(e.target.value)}
+//         disabled={loading}
+//         min="1900"
+//         max="2100"
+//         placeholder="Optional"
+//         style={{ width: "100px", padding: "4px" }}
+//       />
+//     </label>
+//   </div>
+//   <button onClick={handleScrape} disabled={loading}>
+//     Start Scrape
+//   </button>
+// </div>

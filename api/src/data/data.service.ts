@@ -104,21 +104,11 @@ export class DataService {
   }): Promise<TopKAverageResult[]> {
     const { teamId, distance, sport, athleteCount, resultCount } = params;
 
-    const timeToSeconds = `(
-    SPLIT_PART(r.time, ':', 1)::FLOAT * 60
-    + SPLIT_PART(r.time, ':', 2)::FLOAT
-  )`;
-
-    const rankedTimeToSeconds = `(
-    SPLIT_PART(ranked.time, ':', 1)::FLOAT * 60
-    + SPLIT_PART(ranked.time, ':', 2)::FLOAT
-  )`;
-
     const rows = await this.dataSource
       .createQueryBuilder()
       .select('ranked."meetId"')
       .addSelect('ranked."meetName"')
-      .addSelect(`AVG(${rankedTimeToSeconds})`, 'averageTimeSeconds')
+      .addSelect(`AVG(ranked."timeSeconds")`, 'averageTimeSeconds')
       .addSelect(
         `array_agg(
         json_build_object(
@@ -126,20 +116,21 @@ export class DataService {
           'athleteId', ranked."athleteId",
           'time', ranked.time,
           'place', ranked.place
-        ) ORDER BY ${rankedTimeToSeconds} ASC
+        ) ORDER BY ranked."timeSeconds" ASC
       )`,
         'athleteResults',
       )
       .from((subQuery) => {
         return subQuery
           .select('r.time', 'time')
+          .addSelect('r."timeSeconds"', 'timeSeconds')
           .addSelect('r.place', 'place')
           .addSelect('r."meetId"', 'meetId')
           .addSelect('m.name', 'meetName')
           .addSelect('a.name', 'athleteName')
           .addSelect('a.id', 'athleteId')
           .addSelect(
-            `ROW_NUMBER() OVER (PARTITION BY r."meetId" ORDER BY ${timeToSeconds} ASC)`,
+            `ROW_NUMBER() OVER (PARTITION BY r."meetId" ORDER BY r."timeSeconds" ASC)`,
             'rn',
           )
           .addSelect(
@@ -150,8 +141,7 @@ export class DataService {
           .innerJoin(
             Result,
             'r',
-            'r.teamId = t.id AND r.time NOT IN (:...unqualifiedTimes)',
-            { unqualifiedTimes: ['DNF', 'DNS', 'DQ'] },
+            'r.teamId = t.id AND r."timeSeconds" IS NOT NULL',
           )
           .innerJoin(Athlete, 'a', 'a.id = r.athleteId')
           .innerJoin(Meet, 'm', 'm.id = r.meetId')
