@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import type { TopKAverageResult, Team } from "../types/api-types";
-import { SearchDropdown } from "../components/SearchDropdown";
 import * as api from "../services/api-endpoints";
 
 export const XcTopAverage: React.FC = () => {
-  const [teamId, setTeamId] = useState<number | undefined>(undefined);
+  const location = useLocation();
+  const team = location.state?.team as Team | undefined;
+  const teamId = team?.id;
+
   const [distance, setDistance] = useState<string>("");
   const [distancePossibilities, setDistancePossibilities] = useState<string[]>(
     [],
@@ -17,14 +19,6 @@ export const XcTopAverage: React.FC = () => {
   const [averageResults, setAverageResults] = useState<
     TopKAverageResult[] | null
   >(null);
-
-  const fetchTeams = useCallback(async (query: string): Promise<Team[]> => {
-    return api.searchTeams(query);
-  }, []);
-
-  const handleTeamSelect = (team: Team) => {
-    setTeamId(team.id);
-  };
 
   // Fetch distance possibilities when team is selected
   useEffect(() => {
@@ -85,24 +79,27 @@ export const XcTopAverage: React.FC = () => {
       <Link to="/">← Back to Home</Link>
       <h2>Fastest Team Averages</h2>
 
-      <div style={{ marginBottom: "20px", marginTop: "20px" }}>
-        <div style={{ marginBottom: "10px" }}>
-          <SearchDropdown<Team>
-            onSelect={handleTeamSelect}
-            fetchResults={fetchTeams}
-            renderItem={(team) => (
-              <>
-                {team.name} ({team.gender === "Men" ? "M" : "F"}) (
-                {team.sport.toLowerCase() === "xc" ? "XC" : "TF"})
-              </>
-            )}
-            getItemKey={(team) => team.id}
-            getDisplayValue={(team) => team.name}
-            disabled={loading}
-            label="Team Name:"
-            placeholder="Search for a team..."
-          />
+      {!team && (
+        <p style={{ color: "red" }}>
+          No team selected. Please go back and select a team.
+        </p>
+      )}
+
+      {team && (
+        <div
+          style={{
+            marginBottom: "10px",
+            padding: "10px",
+            backgroundColor: "#f0f0f0",
+          }}
+        >
+          <strong>Selected Team:</strong> {team.name} (
+          {team.gender === "Men" ? "M" : "F"}) (
+          {team.sport.toLowerCase() === "xc" ? "XC" : "TF"})
         </div>
+      )}
+
+      <div style={{ marginBottom: "20px", marginTop: "20px" }}>
         {teamId && distancePossibilities.length > 0 && (
           <div style={{ marginBottom: "10px" }}>
             <label>

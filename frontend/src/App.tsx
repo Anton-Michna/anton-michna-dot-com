@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import * as api from "./services/api-endpoints";
 import { SearchDropdown } from "./components/SearchDropdown";
-import type { Athlete } from "./types/api-types";
+import type { Athlete, Team } from "./types/api-types";
 
 function App() {
   const navigate = useNavigate();
@@ -10,6 +10,11 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [earliestMonth, setEarliestMonth] = useState<string | null>(null);
   const [earliestYear, setEarliestYear] = useState<string | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<Team | undefined>(undefined);
+  const [selectedTeamForExtras, setSelectedTeamForExtras] = useState<
+    Team | undefined
+  >(undefined);
+  const [teamLogoUrl, setTeamLogoUrl] = useState<string | null>(null);
   // const [month, setMonth] = useState("");
   // const [year, setYear] = useState("");
 
@@ -20,8 +25,26 @@ function App() {
     [],
   );
 
+  const fetchTeams = useCallback(async (query: string): Promise<Team[]> => {
+    return api.searchTeams(query);
+  }, []);
+
   const handleAthleteSelect = (athlete: Athlete) => {
     navigate(`/${athlete.id}`);
+  };
+
+  const handleTeamSelect = (team: Team) => {
+    setSelectedTeam(team);
+  };
+
+  const handleTeamSelectForExtras = (team: Team) => {
+    setSelectedTeamForExtras(team);
+  };
+
+  const handleGoToFastestAvg = () => {
+    if (selectedTeam) {
+      navigate("/fastestAvg", { state: { team: selectedTeam } });
+    }
   };
 
   const handleGetEarliestData = () => {
@@ -41,6 +64,38 @@ function App() {
           );
         } else {
           setMessage(data.message || "Failed to fetch earliest data");
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        setMessage("API not reachable");
+        setLoading(false);
+      });
+  };
+
+  const handleGetTeamExtras = () => {
+    if (!selectedTeamForExtras) {
+      setMessage("Please select a team for team extras");
+      return;
+    }
+
+    setLoading(true);
+    setMessage("Running getTeamExtras...");
+    setTeamLogoUrl(null);
+
+    api
+      .getTeamExtras(selectedTeamForExtras.id)
+      .then((data) => {
+        if (data.success && data.data) {
+          const logoUrl = data.data.logoUrl;
+          if (logoUrl) {
+            setTeamLogoUrl(logoUrl);
+            setMessage("Team logo retrieved successfully");
+          } else {
+            setMessage("Team extras completed but no logo found");
+          }
+        } else {
+          setMessage(data.message || "Failed to get team extras");
         }
         setLoading(false);
       })
@@ -91,8 +146,61 @@ function App() {
       </div>
 
       <div style={{ marginBottom: "20px" }}>
+        <h2>Get Team Extras</h2>
+        <div style={{ marginBottom: "10px" }}>
+          <SearchDropdown<Team>
+            onSelect={handleTeamSelectForExtras}
+            fetchResults={fetchTeams}
+            renderItem={(team) => (
+              <>
+                {team.name} ({team.gender === "Men" ? "M" : "F"}) (
+                {team.sport.toLowerCase() === "xc" ? "XC" : "TF"})
+              </>
+            )}
+            getItemKey={(team) => team.id}
+            getDisplayValue={(team) => team.name}
+            disabled={loading}
+            label="Team Name:"
+            placeholder="Search for a team..."
+          />
+        </div>
+        <button
+          onClick={handleGetTeamExtras}
+          disabled={loading || !selectedTeamForExtras}
+        >
+          Get Team Extras
+        </button>
+        {teamLogoUrl && (
+          <div style={{ marginTop: "15px" }}>
+            <img
+              src={teamLogoUrl}
+              alt="Team Logo"
+              style={{ maxHeight: "100px", maxWidth: "200px" }}
+            />
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginBottom: "20px" }}>
         <h2>View Fastest Averages</h2>
-        <button onClick={() => navigate("/fastestAvg")}>
+        <div style={{ marginBottom: "10px" }}>
+          <SearchDropdown<Team>
+            onSelect={handleTeamSelect}
+            fetchResults={fetchTeams}
+            renderItem={(team) => (
+              <>
+                {team.name} ({team.gender === "Men" ? "M" : "F"}) (
+                {team.sport.toLowerCase() === "xc" ? "XC" : "TF"})
+              </>
+            )}
+            getItemKey={(team) => team.id}
+            getDisplayValue={(team) => team.name}
+            disabled={loading}
+            label="Team Name:"
+            placeholder="Search for a team..."
+          />
+        </div>
+        <button onClick={handleGoToFastestAvg} disabled={!selectedTeam}>
           Go to Fastest Averages
         </button>
       </div>

@@ -210,6 +210,32 @@ export class AppController {
     }
   }
 
+  @Get('getTeamExtras')
+  async getTeamExtras(@Query('teamId') teamId: string) {
+    const idNum = Number(teamId);
+    if (isNaN(idNum) || idNum <= 0) {
+      return {
+        message: 'Invalid teamId parameter. Must be a positive number.',
+        success: false,
+      };
+    }
+
+    try {
+      const result = await this.scraperService.getTeamExtras(idNum);
+      return {
+        success: true,
+        message: 'Team extras retrieved successfully',
+        data: result,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message:
+          error instanceof Error ? error.message : 'Failed to get team extras',
+      };
+    }
+  }
+
   @Get('searchAthletes')
   async searchAthletes(@Query('query') query: string) {
     try {

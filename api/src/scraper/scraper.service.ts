@@ -13,6 +13,7 @@ import { Team } from '../entities/team.entity';
 import { Meet } from '../entities/meet.entity';
 import { Result } from '../entities/result.entity';
 import { AnyNode } from 'domhandler';
+import sharp from 'sharp';
 
 const TFFRS_SEARCH_RESULT_URL =
   'https://www.tfrrs.org/results_search_page.html';
@@ -871,6 +872,132 @@ export class ScraperService {
     const year = earliestDate.getUTCFullYear().toString();
 
     return { earliestMonth: month, earliestYear: year };
+  }
+
+  async getTeamExtras(teamId: number): Promise<{
+    logoUrl: string | null;
+  }> {
+    const team = await this.teamRepository.findOne({
+      where: { id: teamId },
+    });
+
+    if (!team) {
+      throw new Error('Team not found');
+    }
+
+    const logoUrl = await this.getTeamLogoUrl(team);
+    if (!logoUrl.logoUrl) {
+      return { logoUrl: null };
+    }
+
+    const colors = await this.getTeamColors(logoUrl.logoUrl);
+    console.log(colors);
+    return {
+      logoUrl: logoUrl.logoUrl,
+    };
+  }
+
+  colorDistance(hex1: string, hex2: string): number {
+    const toRgb = (hex: string) => ({
+      r: parseInt(hex.slice(1, 3), 16),
+      g: parseInt(hex.slice(3, 5), 16),
+      b: parseInt(hex.slice(5, 7), 16),
+    });
+
+    const c1 = toRgb(hex1);
+    const c2 = toRgb(hex2);
+
+    // Weighted Euclidean distance (human eyes are more sensitive to green)
+    return Math.sqrt(
+      2 * Math.pow(c1.r - c2.r, 2) +
+        4 * Math.pow(c1.g - c2.g, 2) +
+        3 * Math.pow(c1.b - c2.b, 2),
+    );
+  }
+
+  async getTeamColors(
+    logoUrl: string,
+  ): Promise<{ primary: string; secondary: string } | null> {
+    try {
+      const imageResponse = await makeHttpRequest(logoUrl, 'GET', null, {
+        responseType: 'arraybuffer',
+      });
+
+      const { data } = await sharp(Buffer.from(imageResponse.data))
+        .resize(200, 200, { fit: 'inside' })
+        .flatten({ background: { r: 255, g: 255, b: 255 } }) // transparent -> white
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+
+      const colorCounts: Record<string, number> = {};
+
+      for (let i = 0; i < data.length; i += 3) {
+        const r = data[i],
+          g = data[i + 1],
+          b = data[i + 2];
+        const brightness = (r + g + b) / 3;
+
+        // Skip near-white (background) and near-black pixels
+        if (brightness > 240 || brightness < 15) continue;
+
+        const quantized = `${Math.round(r / 16) * 16},${Math.round(g / 16) * 16},${Math.round(b / 16) * 16}`;
+        colorCounts[quantized] = (colorCounts[quantized] ?? 0) + 1;
+      }
+
+      // Sort by pixel count descending
+      const sorted = Object.entries(colorCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([rgb]) => {
+          const [r, g, b] = rgb.split(',').map(Number);
+          const brightness = (r + g + b) / 3;
+          const saturation = Math.max(
+            Math.abs(r - brightness),
+            Math.abs(g - brightness),
+            Math.abs(b - brightness),
+          );
+          const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+          return { hex, r, g, b, brightness, saturation };
+        });
+
+      const primary = sorted[0];
+
+      // Secondary: most prevalent color that is sufficiently distinct from primary
+      const secondary = sorted.slice(1).find((c) => {
+        return this.colorDistance(primary.hex, c.hex) >= 80;
+      });
+
+      return {
+        primary: primary.hex,
+        secondary: secondary?.hex ?? primary.hex,
+      };
+    } catch (err) {
+      console.error('Failed to extract colors:', err);
+      return null;
+    }
+  }
+
+  async getTeamLogoUrl(team: Team): Promise<{
+    logoUrl: string | null;
+  }> {
+    const tffrsTeamPageResponse = await makeHttpRequest(
+      `https://www.tfrrs.org/teams/${team.sport}/${team.sourceTffrsId}`,
+      'GET',
+    );
+
+    const dom = parser.parseDocument(tffrsTeamPageResponse.data);
+    const teamNameElement = selectOne('h3#team-name', dom);
+
+    if (!teamNameElement) {
+      return { logoUrl: null };
+    }
+
+    const imgTag = selectOne('img', teamNameElement) as AnyNode | null;
+    const logoUrl =
+      imgTag && 'attribs' in imgTag && imgTag.attribs
+        ? imgTag.attribs['src'] || null
+        : null;
+
+    return { logoUrl };
   }
 
   private timeStringToSeconds(timeStr: string): number | null {

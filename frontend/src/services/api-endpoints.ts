@@ -89,3 +89,18 @@ export async function getEarliestMeet(): Promise<{
   const response = await fetch(`${API_BASE_URL}/api/earliestMeet`);
   return handleResponse(response);
 }
+
+// Get Team Extras
+export async function getTeamExtras(teamId: number): Promise<{
+  success: boolean;
+  message?: string;
+  data?: {
+    logoUrl: string | null;
+    colors: string[] | null;
+  };
+}> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/getTeamExtras?teamId=${teamId}`,
+  );
+  return handleResponse(response);
+}

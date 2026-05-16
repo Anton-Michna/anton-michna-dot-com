@@ -4,17 +4,17 @@ export async function makeHttpRequest(
   url: string,
   method: string,
   data?: any,
+  config?: object,
 ): Promise<AxiosResponse> {
   try {
     const response = await axios({
-      method: method,
-      url: url,
-      data: data,
+      method,
+      url,
+      data,
+      ...config,
     });
-
     return response;
   } catch (error) {
-    // If an error occurs, handle it here
     if (axios.isAxiosError(error)) {
       const axiosError: AxiosError = error;
       if (axiosError.response) {
@@ -23,7 +23,6 @@ export async function makeHttpRequest(
         console.error('Error message:', axiosError.message);
       }
     }
-
     throw error;
   }
 }
