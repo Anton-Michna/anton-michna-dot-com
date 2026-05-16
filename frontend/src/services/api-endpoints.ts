@@ -96,7 +96,8 @@ export async function getTeamExtras(teamId: number): Promise<{
   message?: string;
   data?: {
     logoUrl: string | null;
-    colors: string[] | null;
+    primaryColor: string | null;
+    secondaryColor: string | null;
   };
 }> {
   const response = await fetch(

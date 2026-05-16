@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import * as api from "./services/api-endpoints";
 import { SearchDropdown } from "./components/SearchDropdown";
+import { Card } from "./components/Card";
 import type { Athlete, Team } from "./types/api-types";
 
 function App() {
@@ -11,12 +12,7 @@ function App() {
   const [earliestMonth, setEarliestMonth] = useState<string | null>(null);
   const [earliestYear, setEarliestYear] = useState<string | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team | undefined>(undefined);
-  const [selectedTeamForExtras, setSelectedTeamForExtras] = useState<
-    Team | undefined
-  >(undefined);
-  const [teamLogoUrl, setTeamLogoUrl] = useState<string | null>(null);
-  // const [month, setMonth] = useState("");
-  // const [year, setYear] = useState("");
+  const [loadingExtras, setLoadingExtras] = useState(false);
 
   const fetchAthletes = useCallback(
     async (query: string): Promise<Athlete[]> => {
@@ -37,13 +33,50 @@ function App() {
     setSelectedTeam(team);
   };
 
-  const handleTeamSelectForExtras = (team: Team) => {
-    setSelectedTeamForExtras(team);
-  };
+  const handleGoToFastestAvg = async () => {
+    if (!selectedTeam) return;
 
-  const handleGoToFastestAvg = () => {
-    if (selectedTeam) {
-      navigate("/fastestAvg", { state: { team: selectedTeam } });
+    setLoadingExtras(true);
+    setMessage("Loading team information...");
+
+    try {
+      const extrasData = await api.getTeamExtras(selectedTeam.id);
+
+      if (extrasData.success && extrasData.data) {
+        navigate("/fastestAvg", {
+          state: {
+            team: selectedTeam,
+            logoUrl: extrasData.data.logoUrl || "",
+            primaryColor: extrasData.data.primaryColor || "#3b82f6",
+            secondaryColor: extrasData.data.secondaryColor || "#8b5cf6",
+          },
+        });
+      } else {
+        // Navigate with defaults if extras fetch fails
+        navigate("/fastestAvg", {
+          state: {
+            team: selectedTeam,
+            logoUrl: "",
+            primaryColor: "#3b82f6",
+            secondaryColor: "#8b5cf6",
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching team extras:", error);
+      setMessage("Failed to load team information");
+      // Navigate with defaults if error occurs
+      navigate("/fastestAvg", {
+        state: {
+          team: selectedTeam,
+          logoUrl: "",
+          primaryColor: "#3b82f6",
+          secondaryColor: "#8b5cf6",
+        },
+      });
+    } finally {
+      setLoadingExtras(false);
+      setMessage("");
     }
   };
 
@@ -73,189 +106,162 @@ function App() {
       });
   };
 
-  const handleGetTeamExtras = () => {
-    if (!selectedTeamForExtras) {
-      setMessage("Please select a team for team extras");
-      return;
-    }
-
-    setLoading(true);
-    setMessage("Running getTeamExtras...");
-    setTeamLogoUrl(null);
-
-    api
-      .getTeamExtras(selectedTeamForExtras.id)
-      .then((data) => {
-        if (data.success && data.data) {
-          const logoUrl = data.data.logoUrl;
-          if (logoUrl) {
-            setTeamLogoUrl(logoUrl);
-            setMessage("Team logo retrieved successfully");
-          } else {
-            setMessage("Team extras completed but no logo found");
-          }
-        } else {
-          setMessage(data.message || "Failed to get team extras");
-        }
-        setLoading(false);
-      })
-      .catch(() => {
-        setMessage("API not reachable");
-        setLoading(false);
-      });
-  };
-
-  // const handleScrape = () => {
-  //   setLoading(true);
-  //   setMessage("Scraping...");
-
-  //   const params = new URLSearchParams();
-  //   if (month) params.append("month", month);
-  //   if (year) params.append("year", year);
-
-  //   const url = `${import.meta.env.VITE_API_URL}/api/scrapeXcResults${
-  //     params.toString() ? `?${params.toString()}` : ""
-  //   }`;
-
-  //   fetch(url)
-  //     .then((res) => res.json())
-  //     .then((data) => {
-  //       setMessage(data.message || "Scrape completed!");
-  //       setLoading(false);
-  //     })
-  //     .catch(() => {
-  //       setMessage("API not reachable");
-  //       setLoading(false);
-  //     });
-  // };
-
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>Anton Michna Dot Com</h1>
-
-      <div style={{ marginBottom: "20px" }}>
-        <h2>Get Earliest Data</h2>
-        <button onClick={handleGetEarliestData} disabled={loading}>
-          Get Earliest Data
-        </button>
-        {earliestMonth && earliestYear && (
-          <p>
-            Earliest data from: {earliestMonth}/{earliestYear}
+    <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+      <div className="w-full max-w-7xl mx-auto px-4 py-12">
+        {/* Header */}
+        <header className="text-center mb-16">
+          <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 tracking-tight">
+            Anton Michna
+          </h1>
+          <p className="text-xl text-blue-200">
+            Cross Country & Track Analytics
           </p>
-        )}
-      </div>
+        </header>
 
-      <div style={{ marginBottom: "20px" }}>
-        <h2>Get Team Extras</h2>
-        <div style={{ marginBottom: "10px" }}>
-          <SearchDropdown<Team>
-            onSelect={handleTeamSelectForExtras}
-            fetchResults={fetchTeams}
-            renderItem={(team) => (
-              <>
-                {team.name} ({team.gender === "Men" ? "M" : "F"}) (
-                {team.sport.toLowerCase() === "xc" ? "XC" : "TF"})
-              </>
-            )}
-            getItemKey={(team) => team.id}
-            getDisplayValue={(team) => team.name}
-            disabled={loading}
-            label="Team Name:"
-            placeholder="Search for a team..."
-          />
-        </div>
-        <button
-          onClick={handleGetTeamExtras}
-          disabled={loading || !selectedTeamForExtras}
-        >
-          Get Team Extras
-        </button>
-        {teamLogoUrl && (
-          <div style={{ marginTop: "15px" }}>
-            <img
-              src={teamLogoUrl}
-              alt="Team Logo"
-              style={{ maxHeight: "100px", maxWidth: "200px" }}
+        {/* Main Content Grid */}
+        <div className="w-full max-w-4xl mx-auto space-y-6">
+          {/* Athlete Search Card */}
+          <Card
+            title="Search Athlete"
+            description="Find detailed performance stats for any cross country or track athlete"
+            accentColor="bg-blue-400"
+          >
+            <SearchDropdown<Athlete>
+              onSelect={handleAthleteSelect}
+              fetchResults={fetchAthletes}
+              renderItem={(athlete) => <>{athlete.name}</>}
+              getItemKey={(athlete) => athlete.id}
+              getDisplayValue={(athlete) => athlete.name}
+              disabled={loading}
+              placeholder="Search for an athlete..."
             />
-          </div>
-        )}
-      </div>
+          </Card>
 
-      <div style={{ marginBottom: "20px" }}>
-        <h2>View Fastest Averages</h2>
-        <div style={{ marginBottom: "10px" }}>
-          <SearchDropdown<Team>
-            onSelect={handleTeamSelect}
-            fetchResults={fetchTeams}
-            renderItem={(team) => (
-              <>
-                {team.name} ({team.gender === "Men" ? "M" : "F"}) (
-                {team.sport.toLowerCase() === "xc" ? "XC" : "TF"})
-              </>
+          {/* Team Search Card for Fastest Averages */}
+          <Card
+            title="View Fastest Averages"
+            description="Search for a team to view their top 5K average performance"
+            accentColor="bg-purple-400"
+          >
+            <SearchDropdown<Team>
+              onSelect={handleTeamSelect}
+              fetchResults={fetchTeams}
+              renderItem={(team) => (
+                <>
+                  {team.name} ({team.gender === "Men" ? "M" : "F"}) (
+                  {team.sport.toLowerCase() === "xc" ? "XC" : "TF"})
+                </>
+              )}
+              getItemKey={(team) => team.id}
+              getDisplayValue={(team) => team.name}
+              disabled={loading}
+              placeholder="Search for a team..."
+            />
+            {selectedTeam && (
+              <button
+                onClick={handleGoToFastestAvg}
+                disabled={loading || loadingExtras}
+                className="mt-4 w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-lg shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
+              >
+                {loadingExtras ? (
+                  <span className="flex items-center justify-center">
+                    <svg
+                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Loading...
+                  </span>
+                ) : (
+                  "Go to Fastest Averages"
+                )}
+              </button>
             )}
-            getItemKey={(team) => team.id}
-            getDisplayValue={(team) => team.name}
-            disabled={loading}
-            label="Team Name:"
-            placeholder="Search for a team..."
-          />
+          </Card>
+
+          {/* Data Info Card */}
+          <Card
+            title="Database Info"
+            description="Check the earliest meet data available in our database"
+            accentColor="bg-emerald-400"
+          >
+            <button
+              onClick={handleGetEarliestData}
+              disabled={loading}
+              className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold rounded-lg shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center">
+                  <svg
+                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Loading...
+                </span>
+              ) : (
+                "Get Earliest Data"
+              )}
+            </button>
+            {earliestMonth && earliestYear && (
+              <div className="mt-6 p-4 bg-emerald-500/20 border border-emerald-400/30 rounded-lg">
+                <p className="text-emerald-100 font-medium">
+                  📅 Earliest data from: {earliestMonth}/{earliestYear}
+                </p>
+              </div>
+            )}
+          </Card>
+
+          {/* Status Message */}
+          {message && (
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-6 border border-white/20">
+              <p className="text-blue-100 text-center">
+                <span className="font-semibold">Status:</span> {message}
+              </p>
+            </div>
+          )}
         </div>
-        <button onClick={handleGoToFastestAvg} disabled={!selectedTeam}>
-          Go to Fastest Averages
-        </button>
-      </div>
 
-      <div style={{ marginBottom: "20px" }}>
-        <h2>Search Athlete</h2>
-        <SearchDropdown<Athlete>
-          onSelect={handleAthleteSelect}
-          fetchResults={fetchAthletes}
-          renderItem={(athlete) => <>{athlete.name}</>}
-          getItemKey={(athlete) => athlete.id}
-          getDisplayValue={(athlete) => athlete.name}
-          disabled={loading}
-          placeholder="Search for an athlete..."
-        />
+        {/* Footer */}
+        <footer className="text-center mt-16">
+          <p className="text-blue-300/60 text-sm">
+            © 2026 Anton Michna. All rights reserved.
+          </p>
+        </footer>
       </div>
-
-      <p>Status: {message}</p>
     </div>
   );
 }
 
 export default App;
-
-// <div style={{ marginBottom: "20px" }}>
-//   <h2>Scrape XC Results</h2>
-//   <div style={{ marginBottom: "10px" }}>
-//     <label>
-//       Month (1-12):{" "}
-//       <input
-//         type="number"
-//         value={month}
-//         onChange={(e) => setMonth(e.target.value)}
-//         disabled={loading}
-//         min="1"
-//         max="12"
-//         placeholder="Optional"
-//         style={{ width: "100px", padding: "4px", marginRight: "10px" }}
-//       />
-//     </label>
-//     <label>
-//       Year:{" "}
-//       <input
-//         type="number"
-//         value={year}
-//         onChange={(e) => setYear(e.target.value)}
-//         disabled={loading}
-//         min="1900"
-//         max="2100"
-//         placeholder="Optional"
-//         style={{ width: "100px", padding: "4px" }}
-//       />
-//     </label>
-//   </div>
-//   <button onClick={handleScrape} disabled={loading}>
-//     Start Scrape
-//   </button>
-// </div>

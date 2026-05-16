@@ -876,6 +876,8 @@ export class ScraperService {
 
   async getTeamExtras(teamId: number): Promise<{
     logoUrl: string | null;
+    primaryColor: string | null;
+    secondaryColor: string | null;
   }> {
     const team = await this.teamRepository.findOne({
       where: { id: teamId },
@@ -887,13 +889,14 @@ export class ScraperService {
 
     const logoUrl = await this.getTeamLogoUrl(team);
     if (!logoUrl.logoUrl) {
-      return { logoUrl: null };
+      return { logoUrl: null, primaryColor: null, secondaryColor: null };
     }
 
     const colors = await this.getTeamColors(logoUrl.logoUrl);
-    console.log(colors);
     return {
       logoUrl: logoUrl.logoUrl,
+      primaryColor: colors?.primary ?? null,
+      secondaryColor: colors?.secondary ?? null,
     };
   }
 
