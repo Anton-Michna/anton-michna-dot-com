@@ -1,5 +1,12 @@
 {
   "dependencies": {
     "react-router-dom": "^7.15.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.109.0"
+  },
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
   }
 }

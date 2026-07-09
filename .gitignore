@@ -8,3 +8,9 @@ frontend/node_modules
 api/node_modules
 frontend/dist
 api/dist
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
