@@ -70,10 +70,15 @@ export async function getFastestTeamAverages(params: {
 
 // Get Athlete Results
 export async function getAthleteResults(
-  athleteId: string,
+  athleteId: number,
+  sortBy?: "time" | "date",
 ): Promise<GetAthleteResultsResponse> {
+  const params = new URLSearchParams({ athleteId: athleteId.toString() });
+  if (sortBy) {
+    params.append("sortBy", sortBy);
+  }
   const response = await fetch(
-    `${API_BASE_URL}/api/getAthleteResults?athleteId=${athleteId}`,
+    `${API_BASE_URL}/api/getAthleteResults?${params.toString()}`,
   );
   return handleResponse<GetAthleteResultsResponse>(response);
 }

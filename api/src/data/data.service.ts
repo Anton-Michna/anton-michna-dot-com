@@ -26,21 +26,48 @@ export class DataService {
     @InjectDataSource() private dataSource: DataSource,
   ) {}
 
-  async getAthleteResults(athleteId: number): Promise<AthleteResult[]> {
-    const results = await this.resultRepository.find({
-      where: { athlete: { id: athleteId } },
-      relations: ['athlete', 'team', 'meet'],
-    });
+  async getAthleteResults(
+    athleteId: number,
+    sortBy: 'time' | 'date' = 'time',
+  ): Promise<Record<string, AthleteResult[]>> {
+    const queryBuilder = this.resultRepository
+      .createQueryBuilder('result')
+      .leftJoinAndSelect('result.athlete', 'athlete')
+      .leftJoinAndSelect('result.team', 'team')
+      .leftJoinAndSelect('result.meet', 'meet')
+      .where('athlete.id = :athleteId', { athleteId });
 
-    return results.map((result) => ({
+    if (sortBy === 'date') {
+      queryBuilder.orderBy('meet.date', 'DESC');
+    } else {
+      queryBuilder.orderBy('result.time', 'ASC');
+    }
+
+    const results = await queryBuilder.getMany();
+
+    const mapped = results.map((result) => ({
+      athleteName: result.athlete.name,
       sport: 'Cross Country',
       gender: result.team.gender,
+      teamId: result.team.id,
       teamName: result.team.name,
       meetName: result.meet.name,
       event: result.event,
       time: result.time,
       place: result.place,
     }));
+
+    // Group by event
+    const grouped: Record<string, AthleteResult[]> = {};
+    mapped.forEach((result) => {
+      const event = result.event || 'Unknown';
+      if (!grouped[event]) {
+        grouped[event] = [];
+      }
+      grouped[event].push(result);
+    });
+
+    return grouped;
   }
 
   async searchTeams(
@@ -71,10 +98,13 @@ export class DataService {
     }));
   }
 
-  async searchAthletes(query: string): Promise<{ id: number; name: string }[]> {
+  async searchAthletes(
+    query: string,
+  ): Promise<{ id: number; name: string; gender: string; teamName: string }[]> {
     const athletes = await this.athleteRepository
       .createQueryBuilder('athlete')
-      .select(['athlete.id', 'athlete.name'])
+      .leftJoin('athlete.team', 'team')
+      .select(['athlete.id', 'athlete.name', 'team.name', 'team.gender'])
       .where('LOWER(athlete.name) LIKE LOWER(:query)', { query: `%${query}%` })
       .orderBy(
         `CASE 
@@ -89,10 +119,14 @@ export class DataService {
       .limit(10)
       .getMany();
 
-    return athletes.map((athlete) => ({
+    const result = athletes.map((athlete) => ({
       id: athlete.id,
       name: athlete.name,
+      gender: athlete.team?.gender || 'Unknown',
+      teamName: athlete.team?.name || 'Unknown',
     }));
+
+    return result;
   }
 
   async getFastestTeamAverages(params: {

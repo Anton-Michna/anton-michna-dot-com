@@ -23,13 +23,15 @@ export interface GetFastestTeamAveragesResponse {
 export interface GetAthleteResultsResponse {
   message: string;
   success: boolean;
-  data?: GetAthleteResults[];
+  data?: Record<string, GetAthleteResults[]>;
   error?: string;
 }
 
 export interface GetAthleteResults {
+  athleteName: string;
   sport: string;
   gender: string;
+  teamId: number;
   teamName: string;
   meetName: string;
   event: string;
@@ -54,6 +56,8 @@ export interface SearchTeamsResponse {
 export interface Athlete {
   id: number;
   name: string;
+  gender: string;
+  teamName: string;
 }
 
 export interface SearchAthletesResponse {

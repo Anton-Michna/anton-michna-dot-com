@@ -130,7 +130,12 @@ function App() {
             <SearchDropdown<Athlete>
               onSelect={handleAthleteSelect}
               fetchResults={fetchAthletes}
-              renderItem={(athlete) => <>{athlete.name}</>}
+              renderItem={(athlete) => (
+                <>
+                  {athlete.name} ({athlete.gender === "Men" ? "M" : "F"}) (
+                  {athlete.teamName})
+                </>
+              )}
               getItemKey={(athlete) => athlete.id}
               getDisplayValue={(athlete) => athlete.name}
               disabled={loading}
@@ -141,7 +146,7 @@ function App() {
           {/* Team Search Card for Fastest Averages */}
           <Card
             title="View Fastest Averages"
-            description="Search for a team to view their top 5K average performance"
+            description="Search for a team to view their best team averages across distances"
             accentColor="bg-purple-400"
           >
             <SearchDropdown<Team>

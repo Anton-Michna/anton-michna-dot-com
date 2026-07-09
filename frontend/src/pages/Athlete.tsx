@@ -1,21 +1,31 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import type { GetAthleteResults } from "../types/api-types";
 import * as api from "../services/api-endpoints";
 import { Card } from "../components/Card";
 
+type SortBy = "date" | "time";
+
 export const Athlete: React.FC = () => {
   const { athleteId } = useParams<{ athleteId: string }>();
-  const [results, setResults] = useState<GetAthleteResults[] | null>(null);
+  const [results, setResults] = useState<Record<
+    string,
+    GetAthleteResults[]
+  > | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [sortBy, setSortBy] = useState<SortBy>("time");
+  const [athleteName, setAthleteName] = useState<string | null>(null);
+  const [teamLogo, setTeamLogo] = useState<string | null>(null);
+  const [primaryColor, setPrimaryColor] = useState<string>("#3b82f6");
+  const [secondaryColor, setSecondaryColor] = useState<string>("#8b5cf6");
 
-  const fetchAthleteResults = useCallback((id: string) => {
+  const fetchAthleteResults = useCallback((id: string, sort: SortBy) => {
     setLoading(true);
     setMessage("Loading athlete results...");
 
     api
-      .getAthleteResults(id)
+      .getAthleteResults(Number(id), sort)
       .then((data) => {
         if (data.success && data.data) {
           setResults(data.data);
@@ -36,13 +46,59 @@ export const Athlete: React.FC = () => {
 
   useEffect(() => {
     if (athleteId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchAthleteResults(athleteId);
+      fetchAthleteResults(athleteId, sortBy);
     }
-  }, [athleteId, fetchAthleteResults]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [athleteId, sortBy]);
+
+  // Extract athlete name and fetch team logo from first result
+  useEffect(() => {
+    if (results) {
+      const firstEvent = Object.keys(results)[0];
+      if (firstEvent && results[firstEvent].length > 0) {
+        const firstResult = results[firstEvent][0];
+        setAthleteName(firstResult.athleteName);
+
+        // Fetch team extras for logo and colors
+        api
+          .getTeamExtras(firstResult.teamId)
+          .then((data) => {
+            if (data.success && data.data) {
+              if (data.data.logoUrl) {
+                setTeamLogo(data.data.logoUrl);
+              }
+              if (data.data.primaryColor) {
+                setPrimaryColor(data.data.primaryColor);
+              }
+              if (data.data.secondaryColor) {
+                setSecondaryColor(data.data.secondaryColor);
+              }
+            }
+          })
+          .catch((error) => {
+            console.error("Failed to fetch team extras:", error);
+          });
+      }
+    }
+  }, [results]);
+
+  const sortedEvents = useMemo(() => {
+    if (!results) return [];
+    return Object.keys(results).sort();
+  }, [results]);
+
+  const totalRaces = useMemo(() => {
+    if (!results) return 0;
+    return Object.values(results).reduce((sum, races) => sum + races.length, 0);
+  }, [results]);
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+    <div
+      className="min-h-screen w-full"
+      style={{
+        background: `linear-gradient(to bottom right, ${primaryColor}60, ${secondaryColor}30, #0f172a)`,
+      }}
+    >
       {/* Back Button */}
       <div className="absolute top-6 left-6 z-50">
         <Link
@@ -69,9 +125,18 @@ export const Athlete: React.FC = () => {
       <div className="w-full max-w-7xl mx-auto px-4 py-12">
         {/* Header */}
         <header className="text-center mb-12 pt-12">
-          <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 tracking-tight">
-            Athlete Profile
-          </h1>
+          <div className="flex items-center justify-center gap-6 mb-4">
+            {teamLogo && (
+              <img
+                src={teamLogo}
+                alt="Team Logo"
+                className="w-20 h-20 md:w-24 md:h-24 object-contain"
+              />
+            )}
+            <h1 className="text-5xl md:text-6xl font-bold text-white tracking-tight">
+              {athleteName || "Athlete Profile"}
+            </h1>
+          </div>
           <p className="text-xl text-blue-200">Performance History</p>
         </header>
 
@@ -114,7 +179,7 @@ export const Athlete: React.FC = () => {
         )}
 
         {/* No Results */}
-        {!loading && results && results.length === 0 && (
+        {!loading && results && Object.keys(results).length === 0 && (
           <div className="max-w-4xl mx-auto">
             <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-white/20 text-center">
               <p className="text-blue-100 text-lg">
@@ -124,68 +189,97 @@ export const Athlete: React.FC = () => {
           </div>
         )}
 
-        {/* Results Table */}
-        {!loading && results && results.length > 0 && (
-          <div className="max-w-7xl mx-auto">
-            <Card
-              title="Race Results"
-              description={`${results.length} race${results.length > 1 ? "s" : ""} on record`}
-              accentColor="bg-blue-400"
-            >
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-white/20">
-                      <th className="px-4 py-3 text-left text-white font-semibold">
-                        Meet
-                      </th>
-                      <th className="px-4 py-3 text-left text-white font-semibold">
-                        Event
-                      </th>
-                      <th className="px-4 py-3 text-left text-white font-semibold">
-                        Time
-                      </th>
-                      <th className="px-4 py-3 text-left text-white font-semibold">
-                        Place
-                      </th>
-                      <th className="px-4 py-3 text-left text-white font-semibold">
-                        Team
-                      </th>
-                      <th className="px-4 py-3 text-left text-white font-semibold">
-                        Gender
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.map((result, idx) => (
-                      <tr
-                        key={idx}
-                        className="border-b border-white/10 hover:bg-white/5 transition-colors"
-                      >
-                        <td className="px-4 py-3 text-blue-100">
-                          {result.meetName}
-                        </td>
-                        <td className="px-4 py-3 text-blue-100">
-                          {result.event}
-                        </td>
-                        <td className="px-4 py-3 text-white font-semibold">
-                          {result.time}
-                        </td>
-                        <td className="px-4 py-3 text-blue-100">
-                          {result.place}
-                        </td>
-                        <td className="px-4 py-3 text-blue-100">
-                          {result.teamName}
-                        </td>
-                        <td className="px-4 py-3 text-blue-100">
-                          {result.gender}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        {/* Results by Distance */}
+        {!loading && results && Object.keys(results).length > 0 && (
+          <div className="max-w-7xl mx-auto space-y-6">
+            {/* Sort Controls */}
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold text-white">
+                Race Results ({totalRaces} total)
+              </h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSortBy("time")}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                    sortBy === "time"
+                      ? "bg-blue-500 text-white"
+                      : "bg-white/10 text-blue-200 hover:bg-white/20"
+                  }`}
+                >
+                  Sort by Time
+                </button>
+                <button
+                  onClick={() => setSortBy("date")}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                    sortBy === "date"
+                      ? "bg-blue-500 text-white"
+                      : "bg-white/10 text-blue-200 hover:bg-white/20"
+                  }`}
+                >
+                  Sort by Date
+                </button>
               </div>
-            </Card>
+            </div>
+
+            {/* Grouped Results */}
+            {sortedEvents.map((event) => (
+              <Card
+                key={event}
+                title={event}
+                description={`${results[event].length} race${
+                  results[event].length > 1 ? "s" : ""
+                }`}
+                accentColor="bg-blue-400"
+              >
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-white/20">
+                        <th className="px-4 py-3 text-left text-white font-semibold">
+                          Meet
+                        </th>
+                        <th className="px-4 py-3 text-left text-white font-semibold">
+                          Time
+                        </th>
+                        <th className="px-4 py-3 text-left text-white font-semibold">
+                          Place
+                        </th>
+                        <th className="px-4 py-3 text-left text-white font-semibold">
+                          Team
+                        </th>
+                        <th className="px-4 py-3 text-left text-white font-semibold">
+                          Gender
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {results[event].map((result, idx) => (
+                        <tr
+                          key={idx}
+                          className="border-b border-white/10 hover:bg-white/5 transition-colors"
+                        >
+                          <td className="px-4 py-3 text-blue-100">
+                            {result.meetName}
+                          </td>
+                          <td className="px-4 py-3 text-white font-semibold">
+                            {result.time}
+                          </td>
+                          <td className="px-4 py-3 text-blue-100">
+                            {result.place}
+                          </td>
+                          <td className="px-4 py-3 text-blue-100">
+                            {result.teamName}
+                          </td>
+                          <td className="px-4 py-3 text-blue-100">
+                            {result.gender}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            ))}
           </div>
         )}
 

@@ -160,7 +160,10 @@ export class AppController {
   }
 
   @Get('getAthleteResults')
-  async getAthleteResults(@Query('athleteId') athleteId: string) {
+  async getAthleteResults(
+    @Query('athleteId') athleteId: string,
+    @Query('sortBy') sortBy?: 'time' | 'date',
+  ) {
     try {
       const idNum = Number(athleteId);
       if (isNaN(idNum) || idNum <= 0) {
@@ -169,7 +172,10 @@ export class AppController {
           success: false,
         };
       }
-      const results = await this.dataService.getAthleteResults(idNum);
+      const results = await this.dataService.getAthleteResults(
+        idNum,
+        sortBy || 'time',
+      );
       return {
         message: 'Athlete results retrieved successfully!',
         success: true,

@@ -1,6 +1,8 @@
 export interface AthleteResult {
+  athleteName: string;
   sport: string;
   gender: string;
+  teamId: number;
   teamName: string;
   meetName: string;
   event: string;
