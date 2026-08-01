@@ -6,7 +6,7 @@ import { XcTopAverage } from "./pages/TopFiveAverage.tsx";
 import { Athlete } from "./pages/Athlete.tsx";
 
 createRoot(document.getElementById("root")!).render(
-  <BrowserRouter>
+  <BrowserRouter basename="/tfrrs">
     <Routes>
       <Route path="/" element={<App />} />
       <Route path="/fastestAvg" element={<XcTopAverage />} />
