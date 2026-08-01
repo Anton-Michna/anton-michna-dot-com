@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "build": "rm -rf dist && mkdir -p dist && cp -r site/. dist/ && cd frontend && npm ci && npm run build && cd .. && cp -r frontend/dist dist/tfrrs"
+    "build": "rm -rf dist && mkdir -p dist && cd site && npm ci && npm run build && cd .. && cp -r site/dist/. dist/ && cd frontend && npm ci && npm run build && cd .. && cp -r frontend/dist dist/tfrrs"
   },
   "dependencies": {
     "react-router-dom": "^7.15.0"
