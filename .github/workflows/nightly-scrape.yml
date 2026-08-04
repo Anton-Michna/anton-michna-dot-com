@@ -1,0 +1,16 @@
+name: Nightly Scrape
+
+on:
+  schedule:
+    - cron: '0 2 * * *' # 2 AM UTC every day
+  workflow_dispatch: {}
+
+jobs:
+  trigger-scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger nightly scrape
+        run: |
+          curl --fail --show-error --max-time 1800 -X POST \
+            "${{ secrets.API_URL }}/api/nightlyScrape" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"
