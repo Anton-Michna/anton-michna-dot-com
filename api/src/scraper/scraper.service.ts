@@ -4,7 +4,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Cron } from '@nestjs/schedule';
 import { makeHttpRequest } from '../http-request';
 import * as parser from 'htmlparser2';
 import { selectAll, selectOne } from 'css-select';
@@ -75,10 +74,19 @@ export class ScraperService {
     private resultRepository: Repository<Result>,
   ) {}
 
-  @Cron('0 2 * * *') // Runs at 2 AM every day
   async runNightlyScrape() {
-    // console.log("Starting nightly scrape");
-    // await this.scrapeWebsite();
+    const now = new Date();
+    for (let i = 0; i < 2; i++) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const month = (date.getMonth() + 1).toString();
+      const year = date.getFullYear().toString();
+      try {
+        console.log(`Nightly scrape: scraping ${month}/${year}`);
+        await this.fullScrapeXcResults({ month, year });
+      } catch (error) {
+        console.error(`Nightly scrape failed for ${month}/${year}:`, error);
+      }
+    }
   }
 
   async getMeetById(sourceTffrsMeetId: string): Promise<Meet | null> {
@@ -1028,14 +1036,5 @@ export class ScraperService {
       console.error(`Error parsing time string "${timeStr}":`, error);
       return null;
     }
-  }
-
-  private async scrapeWebsite() {
-    // Your scraping logic here
-    // Example:
-    // - Fetch website HTML
-    // - Parse data
-    // - Check database for duplicates
-    // - Insert new records
   }
 }

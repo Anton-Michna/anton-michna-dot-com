@@ -1,4 +1,11 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Headers,
+  Post,
+  Query,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ScraperService } from './scraper/scraper.service';
 import { DataService } from './data/data.service';
 
@@ -74,6 +81,29 @@ export class AppController {
       console.error('Scrape error:', error);
       return {
         message: 'Scrape failed',
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  @Post('nightlyScrape')
+  async triggerNightlyScrape(@Headers('x-cron-secret') cronSecret?: string) {
+    const expectedSecret = process.env.CRON_SECRET;
+    if (!expectedSecret || cronSecret !== expectedSecret) {
+      throw new UnauthorizedException('Invalid or missing cron secret');
+    }
+
+    try {
+      await this.scraperService.runNightlyScrape();
+      return {
+        message: 'Nightly scrape completed successfully!',
+        success: true,
+      };
+    } catch (error) {
+      console.error('Nightly scrape error:', error);
+      return {
+        message: 'Nightly scrape failed',
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       };

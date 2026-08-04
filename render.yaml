@@ -14,4 +14,6 @@ services:
         sync: false # Add your Neon database URL in Render dashboard
       - key: FRONTEND_URL
         value: http://localhost:5173 # Update this with your frontend URL when deployed
+      - key: CRON_SECRET
+        generateValue: true
     healthCheckPath: /api/health
