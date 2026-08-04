@@ -15,54 +15,59 @@ export function Nav() {
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
-      className="fixed inset-x-0 top-0 z-40 border-b border-white/10 bg-slate-950/60 backdrop-blur-md"
+      className="fixed inset-x-0 top-0 z-40 border-b-4 border-ink bg-dirt"
     >
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-        <a
-          href="#"
-          className="text-sm font-semibold tracking-wide text-white"
-        >
+      <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
+        <a href="#" className="comic-text-xs text-lg md:text-xl">
           Anton Michna
         </a>
 
-        <nav className="hidden items-center gap-8 sm:flex">
+        <nav className="hidden items-center gap-3 sm:flex">
           {navItems.map((item) => (
-            <a
+            <motion.a
               key={item.href}
               href={item.href}
-              className="text-sm text-white/60 transition-colors hover:text-white"
+              whileHover={{ y: -2 }}
+              whileTap={{ y: 1 }}
+              className="comic-btn bg-cream px-4 py-1.5 text-sm shadow-[3px_3px_0_0_var(--color-ink)]"
             >
               {item.label}
-            </a>
+            </motion.a>
           ))}
         </nav>
 
-        <div className="flex items-center gap-4">
-          <a
+        <div className="flex items-center gap-2">
+          <motion.a
             href={links.github}
             target="_blank"
             rel="noreferrer"
             aria-label="GitHub"
-            className="text-white/60 transition-colors hover:text-white"
+            whileHover={{ y: -2, rotate: -4 }}
+            whileTap={{ y: 1 }}
+            className="flex h-9 w-9 items-center justify-center rounded-full border-[3px] border-ink bg-cream text-ink shadow-[3px_3px_0_0_var(--color-ink)]"
           >
-            <GithubIcon className="h-5 w-5" />
-          </a>
-          <a
+            <GithubIcon className="h-4 w-4" />
+          </motion.a>
+          <motion.a
             href={links.linkedin}
             target="_blank"
             rel="noreferrer"
             aria-label="LinkedIn"
-            className="text-white/60 transition-colors hover:text-white"
+            whileHover={{ y: -2, rotate: 4 }}
+            whileTap={{ y: 1 }}
+            className="flex h-9 w-9 items-center justify-center rounded-full border-[3px] border-ink bg-cream text-ink shadow-[3px_3px_0_0_var(--color-ink)]"
           >
-            <LinkedinIcon className="h-5 w-5" />
-          </a>
-          <a
+            <LinkedinIcon className="h-4 w-4" />
+          </motion.a>
+          <motion.a
             href={`mailto:${links.email}`}
             aria-label="Email"
-            className="text-white/60 transition-colors hover:text-white"
+            whileHover={{ y: -2, rotate: -4 }}
+            whileTap={{ y: 1 }}
+            className="flex h-9 w-9 items-center justify-center rounded-full border-[3px] border-ink bg-cream text-ink shadow-[3px_3px_0_0_var(--color-ink)]"
           >
-            <MailIcon className="h-5 w-5" />
-          </a>
+            <MailIcon className="h-4 w-4" />
+          </motion.a>
         </div>
       </div>
     </motion.header>

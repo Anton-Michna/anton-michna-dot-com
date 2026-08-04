@@ -10,7 +10,7 @@ export function ScrollProgress() {
 
   return (
     <motion.div
-      className="fixed inset-x-0 top-0 z-50 h-1 origin-left bg-gradient-to-r from-emerald-400 via-blue-400 to-purple-400"
+      className="fixed inset-x-0 top-0 z-50 h-2 origin-left border-b-2 border-ink bg-linear-to-r from-berry via-sun to-grass"
       style={{ scaleX }}
     />
   );

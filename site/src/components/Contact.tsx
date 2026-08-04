@@ -10,23 +10,24 @@ export function Contact() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.4 }}
         transition={{ duration: 0.6 }}
+        className="comic-panel px-6 py-10 md:px-10"
       >
-        <p className="text-sm font-semibold tracking-[0.3em] text-emerald-400 uppercase">
+        <p className="comic-badge bg-grass px-4 py-1 text-xs text-white md:text-sm">
           Contact
         </p>
-        <h2 className="mt-3 text-3xl font-bold text-white md:text-4xl">
+        <h2 className="comic-text-sm mt-4 text-2xl md:text-4xl">
           Let's build something
         </h2>
-        <p className="mt-4 text-white/60">
+        <p className="mt-4 text-ink/70">
           Open to new opportunities — reach out any time.
         </p>
 
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-5">
           <motion.a
             href={`mailto:${links.email}`}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.96 }}
-            className="flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-400 to-blue-400 px-6 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20"
+            whileHover={{ x: -2, y: -2 }}
+            whileTap={{ x: 2, y: 2 }}
+            className="comic-btn bg-sun"
           >
             <MailIcon className="h-4 w-4" />
             {links.email}
@@ -36,9 +37,9 @@ export function Contact() {
             target="_blank"
             rel="noreferrer"
             aria-label="GitHub"
-            whileHover={{ scale: 1.08, y: -2 }}
-            whileTap={{ scale: 0.96 }}
-            className="rounded-full border border-white/20 p-3 text-white/80 transition-colors hover:border-white/40 hover:text-white"
+            whileHover={{ x: -2, y: -2, rotate: -4 }}
+            whileTap={{ x: 2, y: 2 }}
+            className="flex h-12 w-12 items-center justify-center rounded-full border-[3px] border-ink bg-white text-ink shadow-[4px_4px_0_0_var(--color-ink)]"
           >
             <GithubIcon className="h-5 w-5" />
           </motion.a>
@@ -47,16 +48,16 @@ export function Contact() {
             target="_blank"
             rel="noreferrer"
             aria-label="LinkedIn"
-            whileHover={{ scale: 1.08, y: -2 }}
-            whileTap={{ scale: 0.96 }}
-            className="rounded-full border border-white/20 p-3 text-white/80 transition-colors hover:border-white/40 hover:text-white"
+            whileHover={{ x: -2, y: -2, rotate: 4 }}
+            whileTap={{ x: 2, y: 2 }}
+            className="flex h-12 w-12 items-center justify-center rounded-full border-[3px] border-ink bg-white text-ink shadow-[4px_4px_0_0_var(--color-ink)]"
           >
             <LinkedinIcon className="h-5 w-5" />
           </motion.a>
         </div>
       </motion.div>
 
-      <p className="mt-20 text-xs text-white/30">
+      <p className="mt-10 text-xs font-bold text-ink/50">
         © {new Date().getFullYear()} Anton Michna
       </p>
     </section>

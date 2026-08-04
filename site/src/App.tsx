@@ -9,7 +9,7 @@ import { Contact } from "./components/Contact";
 
 function App() {
   return (
-    <div className="relative min-h-screen text-white">
+    <div className="relative min-h-screen font-body text-ink">
       <Background />
       <ScrollProgress />
       <Nav />

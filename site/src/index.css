@@ -1,1 +1,101 @@
 @import "tailwindcss";
+
+@theme {
+  --font-display: "Luckiest Guy", cursive;
+  --font-body: "Baloo 2", ui-rounded, "Segoe UI", sans-serif;
+
+  --color-sky-light: #d8f2ff;
+  --color-sky: #6ec3f4;
+  --color-sky-deep: #2f8fd1;
+  --color-grass: #5bb750;
+  --color-grass-dark: #4da844;
+  --color-dirt: #c68a4b;
+  --color-dirt-dark: #a8703a;
+  --color-sun: #ffd23f;
+  --color-cream: #fff8e6;
+  --color-berry: #ef4444;
+  --color-berry-dark: #c1272d;
+  --color-grape: #8b5cf6;
+  --color-ink: #1a1a1a;
+}
+
+body {
+  font-family: var(--font-body);
+}
+
+/* Chunky offset-shadow cartoon panel, like a scoreboard card */
+.comic-panel {
+  position: relative;
+  border-radius: 1.75rem;
+  border: 4px solid var(--color-ink);
+  background: var(--color-cream);
+  box-shadow: 7px 7px 0 0 var(--color-ink);
+  color: var(--color-ink);
+}
+
+/* Chunky pill button with a hard offset shadow that "presses in" on tap */
+.comic-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  border: 3px solid var(--color-ink);
+  padding: 0.75rem 1.75rem;
+  font-family: var(--font-body);
+  font-weight: 700;
+  color: var(--color-ink);
+  box-shadow: 5px 5px 0 0 var(--color-ink);
+  cursor: pointer;
+}
+
+/* Small rounded tag/badge, like a player position label */
+.comic-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 3px solid var(--color-ink);
+  background: var(--color-sun);
+  color: var(--color-ink);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  box-shadow: 3px 3px 0 0 var(--color-ink);
+}
+
+/* Big cartoon outlined headline text, like the game's logo lettering */
+.comic-text {
+  font-family: var(--font-display);
+  color: #fff;
+  -webkit-text-stroke: 3px var(--color-ink);
+  paint-order: stroke fill;
+  text-shadow:
+    5px 5px 0 var(--color-ink),
+    5px 5px 0 var(--color-ink);
+}
+
+@media (min-width: 768px) {
+  .comic-text {
+    -webkit-text-stroke-width: 5px;
+    text-shadow:
+      8px 8px 0 var(--color-ink),
+      8px 8px 0 var(--color-ink);
+  }
+}
+
+/* Smaller outlined headline for section titles */
+.comic-text-sm {
+  font-family: var(--font-display);
+  color: #fff;
+  -webkit-text-stroke: 1.5px var(--color-ink);
+  paint-order: stroke fill;
+  text-shadow: 3px 3px 0 var(--color-ink);
+}
+
+/* Tiny outlined lettering, e.g. the nav logo — thin stroke so glyphs don't fill in */
+.comic-text-xs {
+  font-family: var(--font-display);
+  color: #fff;
+  -webkit-text-stroke: 1px var(--color-ink);
+  paint-order: stroke fill;
+  text-shadow: 1.5px 1.5px 0 var(--color-ink);
+}
