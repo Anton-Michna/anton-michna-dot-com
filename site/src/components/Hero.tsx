@@ -8,12 +8,13 @@ export function Hero() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.7, delay: 0.2 }}
-        className="sb-frame"
+        className="hud-frame"
       >
-        <p className="font-display text-sm font-bold tracking-[0.4em] text-signal uppercase">
-          Software Engineer
+        <p className="hud-tag justify-center">
+          <span className="text-cyan">▸</span> Software Engineer
+          <span className="hud-cursor text-cyan">_</span>
         </p>
-        <h1 className="mt-4 font-display text-6xl leading-none font-black tracking-tight text-ink uppercase md:text-8xl">
+        <h1 className="hud-text mt-5 text-6xl leading-none uppercase md:text-8xl">
           Anton Michna
         </h1>
       </motion.div>
@@ -22,7 +23,7 @@ export function Hero() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.45 }}
-        className="mt-8 max-w-xl text-ink/60"
+        className="mt-10 max-w-xl text-ink/60"
       >
         Three years of experience building full-stack web applications
       </motion.p>
@@ -37,7 +38,7 @@ export function Hero() {
           href="#projects"
           whileHover={{ y: -2 }}
           whileTap={{ y: 0 }}
-          className="sb-btn sb-btn-primary"
+          className="hud-btn hud-btn-primary"
         >
           View Projects
         </motion.a>
@@ -45,7 +46,7 @@ export function Hero() {
           href="#contact"
           whileHover={{ y: -2 }}
           whileTap={{ y: 0 }}
-          className="sb-btn"
+          className="hud-btn"
         >
           Get in Touch
         </motion.a>
@@ -56,7 +57,7 @@ export function Hero() {
         aria-label="Scroll to About section"
         animate={{ y: [0, 8, 0] }}
         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute bottom-10 text-ink/40 transition-colors hover:text-signal"
+        className="absolute bottom-10 text-ink/40 transition-colors hover:text-cyan"
       >
         <ChevronDownIcon className="h-6 w-6" />
       </motion.a>

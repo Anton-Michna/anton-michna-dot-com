@@ -8,15 +8,13 @@ export function About() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.4 }}
         transition={{ duration: 0.6 }}
-        className="comic-panel px-6 py-8 md:px-10 md:py-10"
+        className="hud-panel px-6 py-8 md:px-10 md:py-10"
       >
-        <p className="comic-badge bg-grape px-4 py-1 text-xs text-white md:text-sm">
-          About Me
-        </p>
-        <h2 className="comic-text-sm mt-4 text-2xl md:text-4xl">
+        <p className="hud-tag text-magenta">▸ About Me</p>
+        <h2 className="mt-4 font-display text-2xl font-black tracking-tight text-ink uppercase [text-shadow:0_0_18px_var(--color-magenta)] md:text-4xl">
           Building things that work
         </h2>
-        <p className="mt-6 leading-relaxed text-ink/80">
+        <p className="mt-6 leading-relaxed text-ink/70">
           I'm a software engineer with three years of experience as a full-stack
           developer, designing APIs, modeling data, and building straightforward
           interfaces. I enjoy problem solving and creating solutions that are

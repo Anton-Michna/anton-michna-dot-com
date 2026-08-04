@@ -1,13 +1,11 @@
 import { motion } from "framer-motion";
 import { skills } from "../data";
 
-const badgeColors = [
-  "bg-berry text-white",
-  "bg-grass text-white",
-  "bg-sun text-ink",
-  "bg-grape text-white",
-  "bg-sky-deep text-white",
-  "bg-dirt text-white",
+const accentClasses = [
+  "border-cyan/50 text-cyan hover:shadow-[0_0_16px_-2px_var(--color-cyan)]",
+  "border-magenta/50 text-magenta hover:shadow-[0_0_16px_-2px_var(--color-magenta)]",
+  "border-lime/50 text-lime hover:shadow-[0_0_16px_-2px_var(--color-lime)]",
+  "border-amber/50 text-amber hover:shadow-[0_0_16px_-2px_var(--color-amber)]",
 ];
 
 export function Skills() {
@@ -18,12 +16,12 @@ export function Skills() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.4 }}
         transition={{ duration: 0.5 }}
-        className="comic-badge bg-sky-deep px-4 py-1 text-xs text-white md:text-sm"
+        className="hud-tag text-lime"
       >
-        Skills
+        ▸ Skills
       </motion.p>
 
-      <div className="mt-6 flex flex-wrap gap-4">
+      <div className="mt-6 flex flex-wrap gap-3">
         {skills.map((skill, i) => (
           <motion.span
             key={skill}
@@ -31,9 +29,8 @@ export function Skills() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.4 }}
             transition={{ duration: 0.4, delay: i * 0.06 }}
-            whileHover={{ x: -2, y: -2, rotate: -2 }}
-            whileTap={{ x: 1, y: 1 }}
-            className={`rounded-full border-[3px] border-ink px-5 py-2 text-sm font-bold shadow-[3px_3px_0_0_var(--color-ink)] ${badgeColors[i % badgeColors.length]}`}
+            whileHover={{ y: -3 }}
+            className={`rounded border bg-panel px-4 py-2 font-display text-xs font-bold tracking-wide uppercase transition-shadow ${accentClasses[i % accentClasses.length]}`}
           >
             {skill}
           </motion.span>

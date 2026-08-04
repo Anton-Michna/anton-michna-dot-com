@@ -1,63 +1,58 @@
 import { motion } from "framer-motion";
 
-function Cloud({
-  className,
-  duration,
-  distance = 24,
-}: {
-  className?: string;
-  duration: number;
-  distance?: number;
-}) {
-  return (
-    <motion.div
-      className={`absolute ${className}`}
-      animate={{ x: [0, distance, 0] }}
-      transition={{ duration, repeat: Infinity, ease: "easeInOut" }}
-    >
-      <div className="relative h-10 w-24 rounded-full border-4 border-ink bg-white md:h-14 md:w-36">
-        <div className="absolute -top-4 left-3 h-9 w-9 rounded-full border-4 border-ink bg-white md:-top-6 md:h-14 md:w-14" />
-        <div className="absolute -top-2 right-4 h-7 w-7 rounded-full border-4 border-ink bg-white md:-top-3 md:h-10 md:w-10" />
-      </div>
-    </motion.div>
-  );
-}
-
 export function Background() {
   return (
-    <div className="fixed inset-0 -z-10 overflow-hidden bg-linear-to-b from-sky via-sky-light to-sky-light">
-      {/* Sun */}
-      <motion.div
-        className="absolute top-10 right-8 h-20 w-20 rounded-full border-4 border-ink bg-sun shadow-[0_0_70px_25px_rgba(255,210,63,0.55)] md:top-14 md:right-20 md:h-28 md:w-28"
-        animate={{ scale: [1, 1.06, 1] }}
-        transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+    <div className="fixed inset-0 -z-10 overflow-hidden bg-linear-to-b from-bg via-bg to-bg-soft">
+      {/* CRT scanlines */}
+      <div
+        className="absolute inset-0 opacity-[0.06]"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(0deg, var(--color-ink) 0px, var(--color-ink) 1px, transparent 1px, transparent 3px)",
+        }}
       />
 
-      {/* Clouds */}
-      <Cloud className="top-24 left-[8%]" duration={26} distance={30} />
-      <Cloud className="top-40 left-[55%]" duration={32} distance={-24} />
-      <Cloud className="top-16 left-[30%]" duration={22} distance={18} />
+      {/* Grid floor */}
+      <div
+        className="absolute inset-0 opacity-[0.05]"
+        style={{
+          backgroundImage:
+            "linear-gradient(var(--color-cyan) 1px, transparent 1px), linear-gradient(90deg, var(--color-cyan) 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+        }}
+      />
 
-      {/* Grass field */}
-      <div className="absolute inset-x-0 bottom-0 h-[20vh] min-h-[140px]">
-        <svg
-          className="absolute -top-1 left-0 h-8 w-full md:h-12"
-          viewBox="0 0 1200 60"
-          preserveAspectRatio="none"
-        >
-          <path
-            d="M0,30 Q50,0 100,30 T200,30 T300,30 T400,30 T500,30 T600,30 T700,30 T800,30 T900,30 T1000,30 T1100,30 T1200,30 V60 H0 Z"
-            className="fill-grass"
-          />
-        </svg>
-        <div
-          className="absolute inset-x-0 bottom-0 top-6 border-t-4 border-ink md:top-10"
-          style={{
-            backgroundImage:
-              "repeating-linear-gradient(90deg, var(--color-grass) 0 40px, var(--color-grass-dark) 40px 80px)",
-          }}
-        />
-      </div>
+      {/* Neon glows */}
+      <motion.div
+        className="absolute top-[-10%] left-[-10%] h-[32rem] w-[32rem] rounded-full bg-cyan/20 blur-3xl"
+        animate={{
+          x: ["0%", "8%", "-4%", "0%"],
+          y: ["0%", "-6%", "5%", "0%"],
+          scale: [1, 1.1, 0.95, 1],
+        }}
+        transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="absolute top-[20%] right-[-15%] h-[36rem] w-[36rem] rounded-full bg-magenta/20 blur-3xl"
+        animate={{
+          x: ["0%", "-6%", "4%", "0%"],
+          y: ["0%", "5%", "-8%", "0%"],
+          scale: [1, 0.9, 1.08, 1],
+        }}
+        transition={{ duration: 26, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="absolute bottom-[-15%] left-[20%] h-[30rem] w-[30rem] rounded-full bg-lime/10 blur-3xl"
+        animate={{
+          x: ["0%", "5%", "-5%", "0%"],
+          y: ["0%", "-4%", "6%", "0%"],
+          scale: [1, 1.05, 0.92, 1],
+        }}
+        transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+      />
+
+      {/* Baseline */}
+      <div className="absolute inset-x-0 bottom-0 h-px bg-linear-to-r from-transparent via-border to-transparent" />
     </div>
   );
 }
