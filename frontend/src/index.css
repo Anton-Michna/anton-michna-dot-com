@@ -1,69 +1,168 @@
 @import "tailwindcss";
 
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@theme {
+  --font-display: "Barlow Condensed", sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+  --color-bg: #0a0d12;
+  --color-bg-soft: #121821;
+  --color-panel: #141a22;
+  --color-panel-2: #1b222c;
+  --color-border: #2b3340;
+  --color-ink: #eef1f6;
+  --color-signal: #22d3ee;
+  --color-signal-dim: #0e7490;
+  --color-gold: #f5b731;
+  --color-crimson: #ef4444;
+  --color-violet: #8b7cf6;
 }
 
 body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  width: 100%;
+  font-family: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-ink);
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+/* Flat dark scoreboard panel */
+.sb-panel {
+  position: relative;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel);
+  box-shadow: 0 24px 48px -28px rgba(0, 0, 0, 0.8);
+  color: var(--color-ink);
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
+/* Rectangular broadcast-style button */
+.sb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel-2);
+  padding: 0.7rem 1.5rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-size: 0.95rem;
+  color: var(--color-ink);
   cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease,
+    filter 0.15s ease;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+.sb-btn:hover {
+  border-color: var(--btn-accent, var(--color-signal));
+  box-shadow: 0 0 24px -6px var(--btn-accent, var(--color-signal));
+  transform: translateY(-2px);
+}
+
+.sb-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.sb-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.sb-btn-primary {
+  background: var(--color-signal);
+  border-color: var(--color-signal);
+  color: #04222b;
+}
+
+.sb-btn-primary:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 0 28px -4px var(--color-signal);
+}
+
+/* Form field, same border language as the buttons */
+.sb-field {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel-2);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-weight: 500;
+  padding: 0.65rem 1rem;
+}
+
+.sb-field:focus {
+  outline: none;
+  border-color: var(--color-signal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-signal) 22%, transparent);
+}
+
+.sb-field::placeholder {
+  color: var(--color-ink);
+  opacity: 0.35;
+}
+
+/* Broadcast camera-frame corner brackets */
+.sb-frame {
+  position: relative;
+}
+
+.sb-frame::before,
+.sb-frame::after {
+  content: "";
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--color-signal);
+  opacity: 0.8;
+}
+
+.sb-frame::before {
+  top: -10px;
+  left: -10px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.sb-frame::after {
+  bottom: -10px;
+  right: -10px;
+  border-left: none;
+  border-top: none;
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
   }
-  a:hover {
-    color: #747bff;
+  50% {
+    transform: translate(4%, -4%) scale(1.08);
   }
-  button {
-    background-color: #f9f9f9;
+}
+
+@keyframes drift-slow {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
   }
+  50% {
+    transform: translate(-5%, 5%) scale(0.94);
+  }
+}
+
+.animate-drift {
+  animation: drift 22s ease-in-out infinite;
+}
+
+.animate-drift-slow {
+  animation: drift-slow 28s ease-in-out infinite;
 }

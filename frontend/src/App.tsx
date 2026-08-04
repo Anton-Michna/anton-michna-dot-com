@@ -3,7 +3,34 @@ import { useNavigate } from "react-router-dom";
 import * as api from "./services/api-endpoints";
 import { SearchDropdown } from "./components/SearchDropdown";
 import { Card } from "./components/Card";
+import { BackToSite } from "./components/BackToSite";
+import { Background } from "./components/Background";
 import type { Athlete, Team } from "./types/api-types";
+
+function Spinner() {
+  return (
+    <svg
+      className="mr-3 -ml-1 h-5 w-5 animate-spin text-ink"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      ></circle>
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      ></path>
+    </svg>
+  );
+}
 
 function App() {
   const navigate = useNavigate();
@@ -107,25 +134,55 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-      <div className="w-full max-w-7xl mx-auto px-4 py-12">
+    <div className="min-h-screen w-full">
+      <Background />
+      <BackToSite />
+      <div className="mx-auto w-full max-w-3xl px-4 py-20 md:py-24">
         {/* Header */}
-        <header className="text-center mb-16">
-          <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 tracking-tight">
-            Anton Michna
-          </h1>
-          <p className="text-xl text-blue-200">
-            Cross Country & Track Analytics
+        <header className="mb-14 text-center">
+          <p className="font-display text-sm font-bold tracking-[0.4em] text-signal uppercase">
+            XC &amp; Track Stats
+          </p>
+          <p className="mt-5 text-lg text-ink/60 md:text-xl">
+            Look up any athlete or team and dig into the results.
           </p>
         </header>
 
-        {/* Main Content Grid */}
-        <div className="w-full max-w-4xl mx-auto space-y-6">
+        {/* Main Content */}
+        <div className="w-full space-y-8">
+          {/* Wake Up the Server Card */}
+          <Card
+            title="Step 1: Wake Up the Server"
+            description="This tool runs on a free server that falls asleep when idle. Tap the button below first and wait for it to respond — search and team lookups below won't work until it's awake."
+            accentColor="bg-gold"
+          >
+            <button
+              onClick={handleGetEarliestData}
+              disabled={loading}
+              className="sb-btn sb-btn-primary w-full sm:w-auto"
+            >
+              {loading ? (
+                <>
+                  <Spinner />
+                  Waking up...
+                </>
+              ) : (
+                "Get Earliest Data"
+              )}
+            </button>
+            {earliestMonth && earliestYear && (
+              <div className="mt-6 rounded-lg border border-border bg-panel-2 px-4 py-2 font-mono text-sm text-ink/80">
+                Server's awake! Earliest data on file: {earliestMonth}/
+                {earliestYear}
+              </div>
+            )}
+          </Card>
+
           {/* Athlete Search Card */}
           <Card
-            title="Search Athlete"
-            description="Find detailed performance stats for any cross country or track athlete"
-            accentColor="bg-blue-400"
+            title="Step 2: Find an Athlete"
+            description="Search by name to pull up every race result on file."
+            accentColor="bg-signal"
           >
             <SearchDropdown<Athlete>
               onSelect={handleAthleteSelect}
@@ -145,9 +202,9 @@ function App() {
 
           {/* Team Search Card for Fastest Averages */}
           <Card
-            title="View Fastest Averages"
-            description="Search for a team to view their best team averages across distances"
-            accentColor="bg-purple-400"
+            title="Step 3: Team Averages"
+            description="Search a team, then compare their fastest lineup averages across distances."
+            accentColor="bg-violet"
           >
             <SearchDropdown<Team>
               onSelect={handleTeamSelect}
@@ -167,100 +224,34 @@ function App() {
               <button
                 onClick={handleGoToFastestAvg}
                 disabled={loading || loadingExtras}
-                className="mt-4 w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-lg shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
+                className="sb-btn sb-btn-primary mt-4 w-full sm:w-auto"
               >
                 {loadingExtras ? (
-                  <span className="flex items-center justify-center">
-                    <svg
-                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
+                  <>
+                    <Spinner />
                     Loading...
-                  </span>
+                  </>
                 ) : (
-                  "Go to Fastest Averages"
+                  `View ${selectedTeam.name}'s Averages`
                 )}
               </button>
             )}
           </Card>
 
-          {/* Data Info Card */}
-          <Card
-            title="Database Info"
-            description="Check the earliest meet data available in our database"
-            accentColor="bg-emerald-400"
-          >
-            <button
-              onClick={handleGetEarliestData}
-              disabled={loading}
-              className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold rounded-lg shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Loading...
-                </span>
-              ) : (
-                "Get Earliest Data"
-              )}
-            </button>
-            {earliestMonth && earliestYear && (
-              <div className="mt-6 p-4 bg-emerald-500/20 border border-emerald-400/30 rounded-lg">
-                <p className="text-emerald-100 font-medium">
-                  📅 Earliest data from: {earliestMonth}/{earliestYear}
-                </p>
-              </div>
-            )}
-          </Card>
-
           {/* Status Message */}
           {message && (
-            <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-6 border border-white/20">
-              <p className="text-blue-100 text-center">
-                <span className="font-semibold">Status:</span> {message}
-              </p>
+            <div className="sb-panel px-6 py-4 text-center font-medium">
+              <span className="font-display font-bold tracking-wide text-signal uppercase">
+                Status:
+              </span>{" "}
+              {message}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <footer className="text-center mt-16">
-          <p className="text-blue-300/60 text-sm">
+        <footer className="mt-16 text-center">
+          <p className="font-mono text-sm text-ink/40">
             © 2026 Anton Michna. All rights reserved.
           </p>
         </footer>

@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import type { CSSProperties } from "react";
 import { useParams, Link } from "react-router-dom";
 import type { GetAthleteResults } from "../types/api-types";
 import * as api from "../services/api-endpoints";
 import { Card } from "../components/Card";
+import { Background } from "../components/Background";
+import { getContrastText } from "../utils/color";
 
 type SortBy = "date" | "time";
 
@@ -17,8 +20,8 @@ export const Athlete: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortBy>("time");
   const [athleteName, setAthleteName] = useState<string | null>(null);
   const [teamLogo, setTeamLogo] = useState<string | null>(null);
-  const [primaryColor, setPrimaryColor] = useState<string>("#3b82f6");
-  const [secondaryColor, setSecondaryColor] = useState<string>("#8b5cf6");
+  const [primaryColor, setPrimaryColor] = useState<string>("#22d3ee");
+  const [secondaryColor, setSecondaryColor] = useState<string>("#8b7cf6");
 
   const fetchAthleteResults = useCallback((id: string, sort: SortBy) => {
     setLoading(true);
@@ -93,128 +96,138 @@ export const Athlete: React.FC = () => {
   }, [results]);
 
   return (
-    <div
-      className="min-h-screen w-full"
-      style={{
-        background: `linear-gradient(to bottom right, ${primaryColor}60, ${secondaryColor}30, #0f172a)`,
-      }}
-    >
-      {/* Back Button */}
-      <div className="absolute top-6 left-6 z-50">
-        <Link
-          to="/"
-          className="inline-flex items-center text-white hover:text-blue-200 transition-colors bg-black/30 backdrop-blur-md px-4 py-2 rounded-lg border border-white/20"
-        >
+    <div className="min-h-screen w-full">
+      <Background primaryColor={primaryColor} secondaryColor={secondaryColor} />
+      {/* Back to search */}
+      <div className="fixed top-4 right-4 z-50">
+        <Link to="/" className="sb-btn px-4 py-2 text-sm">
           <svg
-            className="w-5 h-5 mr-2"
+            className="h-4 w-4"
             fill="none"
             stroke="currentColor"
+            strokeWidth={2.5}
             viewBox="0 0 24 24"
           >
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
-              strokeWidth={2}
               d="M10 19l-7-7m0 0l7-7m-7 7h18"
             />
           </svg>
-          Back to Home
+          Back to Search
         </Link>
       </div>
 
-      <div className="w-full max-w-7xl mx-auto px-4 py-12">
+      <div className="mx-auto w-full max-w-4xl px-4 py-20 md:py-24">
         {/* Header */}
-        <header className="text-center mb-12 pt-12">
-          <div className="flex items-center justify-center gap-6 mb-4">
+        <header className="mb-12 text-center">
+          <div className="flex items-center justify-center gap-5">
             {teamLogo && (
-              <img
-                src={teamLogo}
-                alt="Team Logo"
-                className="w-20 h-20 md:w-24 md:h-24 object-contain"
-              />
+              <div className="flex h-16 w-16 items-center justify-center rounded-full border border-border bg-white p-2 shadow-[0_16px_32px_-16px_rgba(0,0,0,0.7)] md:h-20 md:w-20">
+                <img
+                  src={teamLogo}
+                  alt="Team Logo"
+                  className="h-full w-full object-contain"
+                />
+              </div>
             )}
-            <h1 className="text-5xl md:text-6xl font-bold text-white tracking-tight">
+            <h1 className="font-display text-4xl leading-none font-black tracking-tight text-ink uppercase md:text-6xl">
               {athleteName || "Athlete Profile"}
             </h1>
           </div>
-          <p className="text-xl text-blue-200">Performance History</p>
+          <p
+            className="mt-5 inline-flex items-center rounded border px-4 py-1 font-display text-xs font-bold tracking-[0.2em] uppercase md:text-sm"
+            style={{ borderColor: primaryColor, color: primaryColor }}
+          >
+            Performance History
+          </p>
         </header>
 
         {/* Loading State */}
         {loading && (
-          <div className="flex justify-center items-center py-20">
-            <div className="flex flex-col items-center">
-              <svg
-                className="animate-spin h-12 w-12 text-blue-400 mb-4"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              <p className="text-blue-200 text-lg">{message}</p>
-            </div>
+          <div className="sb-panel flex flex-col items-center px-8 py-14 text-center">
+            <svg
+              className="mb-4 h-12 w-12 animate-spin text-signal"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            <p className="text-lg text-ink/70">{message}</p>
           </div>
         )}
 
         {/* Error Message */}
         {!loading && message && (
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-red-500/20 border border-red-400/50 rounded-2xl p-6 text-center">
-              <p className="text-red-200 text-lg">{message}</p>
-            </div>
+          <div className="sb-panel px-6 py-6 text-center">
+            <p className="text-lg font-semibold text-crimson">{message}</p>
           </div>
         )}
 
         {/* No Results */}
         {!loading && results && Object.keys(results).length === 0 && (
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-white/20 text-center">
-              <p className="text-blue-100 text-lg">
-                No results found for this athlete.
-              </p>
-            </div>
+          <div className="sb-panel px-8 py-8 text-center">
+            <p className="text-lg text-ink/70">
+              No results found for this athlete.
+            </p>
           </div>
         )}
 
         {/* Results by Distance */}
         {!loading && results && Object.keys(results).length > 0 && (
-          <div className="max-w-7xl mx-auto space-y-6">
+          <div className="w-full space-y-8">
             {/* Sort Controls */}
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-bold text-white">
-                Race Results ({totalRaces} total)
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <h2 className="font-display text-xl font-bold tracking-wide text-ink uppercase md:text-2xl">
+                {totalRaces} Race{totalRaces === 1 ? "" : "s"} on File
               </h2>
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 <button
                   onClick={() => setSortBy("time")}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                    sortBy === "time"
-                      ? "bg-blue-500 text-white"
-                      : "bg-white/10 text-blue-200 hover:bg-white/20"
-                  }`}
+                  className="sb-btn px-4 py-2 text-sm"
+                  style={
+                    {
+                      "--btn-accent": primaryColor,
+                      ...(sortBy === "time"
+                        ? {
+                            backgroundColor: primaryColor,
+                            borderColor: primaryColor,
+                            color: getContrastText(primaryColor),
+                          }
+                        : {}),
+                    } as CSSProperties
+                  }
                 >
                   Sort by Time
                 </button>
                 <button
                   onClick={() => setSortBy("date")}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                    sortBy === "date"
-                      ? "bg-blue-500 text-white"
-                      : "bg-white/10 text-blue-200 hover:bg-white/20"
-                  }`}
+                  className="sb-btn px-4 py-2 text-sm"
+                  style={
+                    {
+                      "--btn-accent": primaryColor,
+                      ...(sortBy === "date"
+                        ? {
+                            backgroundColor: primaryColor,
+                            borderColor: primaryColor,
+                            color: getContrastText(primaryColor),
+                          }
+                        : {}),
+                    } as CSSProperties
+                  }
                 >
                   Sort by Date
                 </button>
@@ -222,32 +235,32 @@ export const Athlete: React.FC = () => {
             </div>
 
             {/* Grouped Results */}
-            {sortedEvents.map((event) => (
+            {sortedEvents.map((event, i) => (
               <Card
                 key={event}
                 title={event}
                 description={`${results[event].length} race${
                   results[event].length > 1 ? "s" : ""
                 }`}
-                accentColor="bg-blue-400"
+                accentHex={i % 2 === 0 ? primaryColor : secondaryColor}
               >
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full text-left">
                     <thead>
-                      <tr className="border-b border-white/20">
-                        <th className="px-4 py-3 text-left text-white font-semibold">
+                      <tr className="border-b border-border">
+                        <th className="px-3 py-2 font-display text-xs font-bold tracking-wide text-ink/60 uppercase">
                           Meet
                         </th>
-                        <th className="px-4 py-3 text-left text-white font-semibold">
+                        <th className="px-3 py-2 font-display text-xs font-bold tracking-wide text-ink/60 uppercase">
                           Time
                         </th>
-                        <th className="px-4 py-3 text-left text-white font-semibold">
+                        <th className="px-3 py-2 font-display text-xs font-bold tracking-wide text-ink/60 uppercase">
                           Place
                         </th>
-                        <th className="px-4 py-3 text-left text-white font-semibold">
+                        <th className="px-3 py-2 font-display text-xs font-bold tracking-wide text-ink/60 uppercase">
                           Team
                         </th>
-                        <th className="px-4 py-3 text-left text-white font-semibold">
+                        <th className="px-3 py-2 font-display text-xs font-bold tracking-wide text-ink/60 uppercase">
                           Gender
                         </th>
                       </tr>
@@ -256,21 +269,26 @@ export const Athlete: React.FC = () => {
                       {results[event].map((result, idx) => (
                         <tr
                           key={idx}
-                          className="border-b border-white/10 hover:bg-white/5 transition-colors"
+                          className={`border-b border-border/50 ${
+                            idx % 2 === 1 ? "bg-panel-2/40" : ""
+                          }`}
                         >
-                          <td className="px-4 py-3 text-blue-100">
+                          <td className="px-3 py-2 text-ink/70">
                             {result.meetName}
                           </td>
-                          <td className="px-4 py-3 text-white font-semibold">
+                          <td
+                            className="px-3 py-2 font-mono font-semibold"
+                            style={{ color: primaryColor }}
+                          >
                             {result.time}
                           </td>
-                          <td className="px-4 py-3 text-blue-100">
+                          <td className="px-3 py-2 text-ink/70">
                             {result.place}
                           </td>
-                          <td className="px-4 py-3 text-blue-100">
+                          <td className="px-3 py-2 text-ink/70">
                             {result.teamName}
                           </td>
-                          <td className="px-4 py-3 text-blue-100">
+                          <td className="px-3 py-2 text-ink/70">
                             {result.gender}
                           </td>
                         </tr>
@@ -284,8 +302,8 @@ export const Athlete: React.FC = () => {
         )}
 
         {/* Footer */}
-        <footer className="text-center mt-16">
-          <p className="text-blue-300/60 text-sm">
+        <footer className="mt-16 text-center">
+          <p className="font-mono text-sm text-ink/40">
             © 2026 Anton Michna. All rights reserved.
           </p>
         </footer>

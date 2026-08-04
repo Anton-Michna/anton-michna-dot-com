@@ -97,7 +97,11 @@ export function SearchDropdown<T>({
 
   return (
     <div className="relative">
-      {label && <label>{label}</label>}
+      {label && (
+        <label className="mb-1 block font-display text-sm font-bold tracking-wide text-ink uppercase">
+          {label}
+        </label>
+      )}
       <input
         ref={inputRef}
         type="text"
@@ -105,10 +109,10 @@ export function SearchDropdown<T>({
         onChange={(e) => setSearchQuery(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
-        className="w-full px-4 py-2 bg-white/20 border border-white/30 rounded-lg text-white placeholder-blue-200/50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+        className="sb-field disabled:cursor-not-allowed disabled:opacity-55"
       />
       {isLoading && (
-        <div className="text-xs text-blue-200 mt-1">Loading...</div>
+        <div className="mt-1 font-mono text-xs text-ink/50">Loading...</div>
       )}
       {showDropdown &&
         searchResults.length > 0 &&
@@ -121,13 +125,13 @@ export function SearchDropdown<T>({
               left: dropdownPos.left,
               width: dropdownPos.width,
             }}
-            className="max-h-48 overflow-y-auto bg-white border border-gray-300 rounded-lg shadow-2xl z-[9999]"
+            className="z-[9999] max-h-48 overflow-y-auto rounded-lg border border-border bg-panel shadow-[0_24px_48px_-28px_rgba(0,0,0,0.8)]"
           >
             {searchResults.map((item) => (
               <div
                 key={getItemKey(item)}
                 onClick={() => handleItemSelect(item)}
-                className="px-3 py-2 cursor-pointer border-b border-gray-200 text-black hover:bg-gray-100 transition-colors"
+                className="cursor-pointer border-b border-border px-3 py-2 text-ink transition-colors last:border-b-0 hover:bg-signal/10 hover:text-signal"
               >
                 {renderItem(item)}
               </div>

@@ -4,23 +4,30 @@ interface CardProps {
   title: string;
   description: string;
   accentColor?: string;
+  accentHex?: string;
   children: ReactNode;
 }
 
 export function Card({
   title,
   description,
-  accentColor = "bg-blue-400",
+  accentColor = "bg-signal",
+  accentHex,
   children,
 }: CardProps) {
   return (
-    <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-white/20">
-      <div className="flex items-center mb-6">
-        <div className={`w-1 h-8 ${accentColor} rounded-full mr-4`}></div>
-        <h2 className="text-3xl font-bold text-white">{title}</h2>
+    <div className="sb-panel overflow-hidden p-0">
+      <div
+        className={accentHex ? "h-[3px] w-full" : `h-[3px] w-full ${accentColor}`}
+        style={accentHex ? { backgroundColor: accentHex } : undefined}
+      />
+      <div className="p-6 md:p-8">
+        <h2 className="font-display text-2xl font-bold tracking-wide text-ink uppercase md:text-3xl">
+          {title}
+        </h2>
+        <p className="mt-2 text-ink/60">{description}</p>
+        <div className="relative z-0 mt-6">{children}</div>
       </div>
-      <p className="text-blue-100 mb-6">{description}</p>
-      <div className="relative z-0">{children}</div>
     </div>
   );
 }
