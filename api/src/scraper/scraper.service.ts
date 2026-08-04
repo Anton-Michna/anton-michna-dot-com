@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-enum-comparison */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -58,9 +57,7 @@ export interface ResultData {
 
 @Injectable()
 export class ScraperService {
-  // Cache for database lookups
-  private teamCache = new Map<string, Team>();
-  private athleteCache = new Map<string, Athlete>();
+  // Cache for meet lookups within a scrape run
   private meetCache = new Map<string, Meet>();
 
   constructor(
@@ -273,7 +270,7 @@ export class ScraperService {
     vals: SearchPageScrapeResults;
     meet: Meet;
   }) {
-    const { vals } = params;
+    const { vals, meet } = params;
     const url = vals.urlToResults;
 
     const response = await makeHttpRequest(url, 'GET');
@@ -282,27 +279,27 @@ export class ScraperService {
 
     const genders = ['Men', 'Women'] as const;
 
-    for (const gender of genders) {
-      const { resultsToSave, upsertableAthletes, upsertableTeams } =
-        this.scrapeGenderedMeetResults(dom, params.meet, gender) || {
-          resultsToSave: [],
-          upsertableAthletes: [],
-          upsertableTeams: [],
-        };
+    const resultsToSave: ResultData[] = [];
+    const upsertableAthletes: AthleteData[] = [];
+    const upsertableTeams: TeamData[] = [];
 
-      await this.upsertTeams(upsertableTeams);
-      console.log(
-        `${gender} Teams for meet ${params.meet.name} finished upserting.`,
-      );
-      await this.upsertAthletes(upsertableAthletes);
-      console.log(
-        `${gender} Athletes for meet ${params.meet.name} finished upserting.`,
-      );
-      await this.upsertResults(resultsToSave);
-      console.log(
-        `${gender} Results for meet ${params.meet.name} finished upserting.`,
-      );
+    for (const gender of genders) {
+      const genderResults = this.scrapeGenderedMeetResults(dom, meet, gender);
+      if (!genderResults) continue;
+      resultsToSave.push(...genderResults.resultsToSave);
+      upsertableAthletes.push(...genderResults.upsertableAthletes);
+      upsertableTeams.push(...genderResults.upsertableTeams);
     }
+
+    // Teams -> athletes -> results, since each step's FKs depend on the previous step's ids
+    const teamIdMap = await this.upsertTeams(upsertableTeams);
+    const athleteIdMap = await this.upsertAthletes(
+      upsertableAthletes,
+      teamIdMap,
+    );
+    await this.upsertResults(resultsToSave, meet, teamIdMap, athleteIdMap);
+
+    console.log(`Meet ${meet.name} finished upserting.`);
   }
 
   private scrapeGenderedMeetResults(
@@ -432,421 +429,185 @@ export class ScraperService {
       }
     });
 
-    const uniqueTeams = Array.from(
-      new Map(
-        upsertableTeams.map((team) => [
-          `${team.sourceTffrsId}-${team.gender}`,
-          team,
-        ]),
-      ).values(),
-    );
-
     return {
       resultsToSave,
       upsertableAthletes,
-      upsertableTeams: uniqueTeams,
+      upsertableTeams,
     };
   }
 
-  async upsertTeam(teamData: TeamData) {
-    const { sourceTffrsId, name, gender, sport } = teamData;
+  // Upserts teams and returns a map of sourceTffrsId -> db id, read from the
+  // upsert's own RETURNING clause so no follow-up SELECT is needed.
+  //
+  // Deliberately uses createQueryBuilder().orUpdate() with an explicit
+  // overwrite column list instead of Repository.upsert(): the latter
+  // includes every settable column - including the generated primary key -
+  // in its ON CONFLICT DO UPDATE SET clause, which reassigns a *new* id to
+  // an already-existing row on every conflict and breaks FK references from
+  // athletes/results already pointing at the old id.
+  async upsertTeams(teamsData: TeamData[]): Promise<Map<string, number>> {
+    const teamIdMap = new Map<string, number>();
+    if (teamsData.length === 0) return teamIdMap;
 
-    if (this.teamCache.has(sourceTffrsId)) {
-      return this.teamCache.get(sourceTffrsId)!;
-    }
-
-    const existingTeam = await this.teamRepository.findOne({
-      where: { sourceTffrsId },
-    });
-
-    if (!existingTeam) {
-      const newTeam = this.teamRepository.create({
-        sourceTffrsId,
-        name,
-        gender,
-        sport,
-      });
-      const savedTeam = await this.teamRepository.save(newTeam);
-      this.teamCache.set(sourceTffrsId, savedTeam);
-      return savedTeam;
-    } else {
-      this.teamCache.set(sourceTffrsId, existingTeam);
-      return existingTeam;
-    }
-  }
-
-  async upsertTeams(teamsData: TeamData[]) {
-    if (teamsData.length === 0) return;
-
-    await this.teamRepository.upsert(
-      teamsData.map((data) => ({
-        sourceTffrsId: data.sourceTffrsId,
-        name: data.name,
-        gender: data.gender,
-        sport: data.sport,
-      })),
-      ['sourceTffrsId'], // conflict target
+    const uniqueTeams = Array.from(
+      new Map(teamsData.map((team) => [team.sourceTffrsId, team])).values(),
     );
 
-    // Update cache with newly upserted teams
-    const upsertedTeams = await this.teamRepository.find({
-      where: teamsData.map((data) => ({
-        sourceTffrsId: data.sourceTffrsId,
-      })),
+    const result = await this.teamRepository
+      .createQueryBuilder()
+      .insert()
+      .values(uniqueTeams)
+      .orUpdate(['name', 'gender', 'sport'], ['sourceTffrsId'])
+      .returning(['id', 'sourceTffrsId'])
+      .execute();
+
+    (result.raw as { id: number; sourceTffrsId: string }[]).forEach((row) => {
+      teamIdMap.set(row.sourceTffrsId, row.id);
     });
 
-    upsertedTeams.forEach((team) => {
-      this.teamCache.set(team.sourceTffrsId, team);
-    });
+    return teamIdMap;
   }
 
-  async upsertAthlete(athleteData: AthleteData) {
-    const { sourceTffrsAthleteId, name, sport, sourceTffrsTeamId } =
-      athleteData;
+  // Upserts athletes using an already-resolved team id map (avoids re-querying
+  // teams that were just upserted moments earlier for the same meet).
+  async upsertAthletes(
+    athletesData: AthleteData[],
+    teamIdMap: Map<string, number>,
+  ): Promise<Map<string, number>> {
+    const athleteIdMap = new Map<string, number>();
+    if (athletesData.length === 0) return athleteIdMap;
 
-    if (this.athleteCache.has(sourceTffrsAthleteId)) {
-      return this.athleteCache.get(sourceTffrsAthleteId)!;
-    }
-
-    // Get team from cache or database
-    let team = this.teamCache.get(sourceTffrsTeamId);
-    if (!team) {
-      const foundTeam = await this.teamRepository.findOne({
-        where: { sourceTffrsId: sourceTffrsTeamId },
-      });
-      if (foundTeam) {
-        team = foundTeam;
-        this.teamCache.set(sourceTffrsTeamId, foundTeam);
-      }
-    }
-
-    if (!team) {
-      console.warn(
-        `Team with sourceTffrsId ${sourceTffrsTeamId} not found, skipping athlete.`,
-      );
-      return null;
-    }
-
-    const existingAthlete = await this.athleteRepository.findOne({
-      where: { sourceTffrsAthleteId },
-      relations: ['team'],
-    });
-
-    if (!existingAthlete) {
-      const newAthlete = this.athleteRepository.create({
-        sourceTffrsAthleteId,
-        name,
-        sport,
-        team,
-      });
-      const savedAthlete = await this.athleteRepository.save(newAthlete);
-      this.athleteCache.set(sourceTffrsAthleteId, savedAthlete);
-      return savedAthlete;
-    } else {
-      this.athleteCache.set(sourceTffrsAthleteId, existingAthlete);
-      return existingAthlete;
-    }
-  }
-
-  async upsertAthletes(athletesData: AthleteData[]) {
-    if (athletesData.length === 0) return;
-
-    // --- Fetch all relevant teams ---
-    const teamIds = [...new Set(athletesData.map((a) => a.sourceTffrsTeamId))];
-    const teams = await this.teamRepository.find({
-      where: teamIds.map((id) => ({ sourceTffrsId: id })),
-    });
-
-    // --- Create team lookup map ---
-    const teamMap = new Map(teams.map((t) => [String(t.sourceTffrsId), t.id]));
-
-    // Update team cache
-    teams.forEach((team) => this.teamCache.set(team.sourceTffrsId, team));
-
-    // --- Filter valid athletes ---
-    const validAthletes = athletesData
-      .filter((athlete) => {
-        const hasValidTeam = teamMap.has(String(athlete.sourceTffrsTeamId));
-        if (!hasValidTeam) {
-          console.warn(
-            `Team with sourceTffrsId ${athlete.sourceTffrsTeamId} not found, skipping athlete.`,
-          );
-        }
-        return hasValidTeam;
-      })
-      .map((athlete) => ({
-        sourceTffrsAthleteId: String(athlete.sourceTffrsAthleteId),
-        name: athlete.name,
-        sport: athlete.sport,
-        team: { id: teamMap.get(String(athlete.sourceTffrsTeamId))! },
-      }));
-
-    if (validAthletes.length === 0) return;
-
-    // --- Deduplicate athletes ---
-    const athleteMap = new Map<string, (typeof validAthletes)[0]>();
-    validAthletes.forEach((athlete) => {
-      const key = athlete.sourceTffrsAthleteId;
-      if (athleteMap.has(key)) {
+    const validAthletes = athletesData.filter((athlete) => {
+      const hasValidTeam = teamIdMap.has(athlete.sourceTffrsTeamId);
+      if (!hasValidTeam) {
         console.warn(
-          `Duplicate athlete detected: ID=${key}, Name=${athlete.name}`,
+          `Team with sourceTffrsId ${athlete.sourceTffrsTeamId} not found, skipping athlete.`,
         );
-      } else {
-        athleteMap.set(key, athlete);
       }
+      return hasValidTeam;
     });
 
-    const uniqueAthletes = Array.from(athleteMap.values());
-
-    if (uniqueAthletes.length < validAthletes.length) {
-      console.warn(
-        `Removed ${validAthletes.length - uniqueAthletes.length} duplicate athletes`,
-      );
-      const removedIds = validAthletes
-        .map((a) => a.sourceTffrsAthleteId)
-        .filter((id) => !athleteMap.has(id));
-      console.warn(`Duplicate athlete IDs removed: ${removedIds.join(', ')}`);
-    }
-
-    // --- Bulk upsert ---
-    await this.athleteRepository.upsert(uniqueAthletes, [
-      'sourceTffrsAthleteId',
-    ]);
-
-    // --- Update cache with newly upserted athletes ---
-    const upsertedAthletes = await this.athleteRepository.find({
-      where: uniqueAthletes.map((a) => ({
-        sourceTffrsAthleteId: a.sourceTffrsAthleteId,
-      })),
-    });
-
-    upsertedAthletes.forEach((athlete) =>
-      this.athleteCache.set(athlete.sourceTffrsAthleteId, athlete),
+    const uniqueAthletes = Array.from(
+      new Map(
+        validAthletes.map((athlete) => [athlete.sourceTffrsAthleteId, athlete]),
+      ).values(),
     );
 
-    console.log(`Upserted ${upsertedAthletes.length} athletes successfully.`);
-  }
+    if (uniqueAthletes.length === 0) return athleteIdMap;
 
-  async upsertMeet(meetData: MeetData) {
-    const { sourceTffrsMeetId, name, date } = meetData;
+    const result = await this.athleteRepository
+      .createQueryBuilder()
+      .insert()
+      .values(
+        uniqueAthletes.map((athlete) => ({
+          sourceTffrsAthleteId: athlete.sourceTffrsAthleteId,
+          name: athlete.name,
+          sport: athlete.sport,
+          team: { id: teamIdMap.get(athlete.sourceTffrsTeamId)! },
+        })),
+      )
+      .orUpdate(['name', 'sport', 'teamId'], ['sourceTffrsAthleteId'])
+      .returning(['id', 'sourceTffrsAthleteId'])
+      .execute();
 
-    const existingMeet = await this.meetRepository.findOne({
-      where: { sourceTffrsMeetId },
-    });
+    (result.raw as { id: number; sourceTffrsAthleteId: string }[]).forEach(
+      (row) => {
+        athleteIdMap.set(row.sourceTffrsAthleteId, row.id);
+      },
+    );
 
-    if (!existingMeet) {
-      const newMeet = this.meetRepository.create({
-        sourceTffrsMeetId,
-        name,
-        date,
-      });
-      return await this.meetRepository.save(newMeet);
-    }
+    return athleteIdMap;
   }
 
   async upsertMeets(meetsData: MeetData[]) {
     if (meetsData.length === 0) return;
 
-    await this.meetRepository.upsert(
-      meetsData.map((data) => ({
-        sourceTffrsMeetId: data.sourceTffrsMeetId,
-        name: data.name,
-        date: data.date,
-      })),
-      ['sourceTffrsMeetId'], // conflict target
+    const uniqueMeets = Array.from(
+      new Map(meetsData.map((meet) => [meet.sourceTffrsMeetId, meet])).values(),
     );
 
-    // Update cache with newly upserted meets
-    const upsertedMeets = await this.meetRepository.find({
-      where: meetsData.map((data) => ({
-        sourceTffrsMeetId: data.sourceTffrsMeetId,
-      })),
-    });
+    const result = await this.meetRepository
+      .createQueryBuilder()
+      .insert()
+      .values(uniqueMeets)
+      .orUpdate(['name', 'date'], ['sourceTffrsMeetId'])
+      .returning(['id', 'sourceTffrsMeetId'])
+      .execute();
 
-    upsertedMeets.forEach((meet) => {
-      this.meetCache.set(meet.sourceTffrsMeetId, meet);
-    });
-  }
+    const meetDataById = new Map(
+      uniqueMeets.map((meetData) => [meetData.sourceTffrsMeetId, meetData]),
+    );
 
-  async upsertResult(resultData: ResultData) {
-    const {
-      sourceTffrsMeetId,
-      sourceTffrsAthleteId,
-      sourceTffrsTeamId,
-      event,
-      time,
-      timeSeconds,
-      place,
-    } = resultData;
-    const meet = await this.meetRepository.findOne({
-      where: { sourceTffrsMeetId },
-    });
-
-    if (!meet) {
-      console.warn(
-        `Meet with sourceTffrsMeetId ${sourceTffrsMeetId} not found, skipping result.`,
-      );
-      return null;
-    }
-
-    const athlete = await this.athleteRepository.findOne({
-      where: { sourceTffrsAthleteId },
-    });
-
-    if (!athlete) {
-      console.warn(
-        `Athlete with sourceTffrsAthleteId ${sourceTffrsAthleteId} not found, skipping result.`,
-      );
-      return null;
-    }
-
-    const team = await this.teamRepository.findOne({
-      where: { sourceTffrsId: sourceTffrsTeamId },
-    });
-
-    if (!team) {
-      console.warn(
-        `Team with sourceTffrsId ${sourceTffrsTeamId} not found, skipping result.`,
-      );
-      return null;
-    }
-
-    const existingResult = await this.resultRepository.findOne({
-      where: {
-        sourceTffrsMeetId,
-        sourceTffrsAthleteId,
-        event,
+    (result.raw as { id: number; sourceTffrsMeetId: string }[]).forEach(
+      (row) => {
+        const meetData = meetDataById.get(row.sourceTffrsMeetId)!;
+        const meet = this.meetRepository.create({
+          id: row.id,
+          sourceTffrsMeetId: row.sourceTffrsMeetId,
+          name: meetData.name,
+          date: meetData.date,
+        });
+        this.meetCache.set(row.sourceTffrsMeetId, meet);
       },
-      relations: ['meet', 'athlete', 'team'],
-    });
-
-    if (!existingResult) {
-      const newResult = this.resultRepository.create({
-        meet,
-        athlete,
-        team,
-        sourceTffrsMeetId,
-        sourceTffrsAthleteId,
-        sourceTffrsTeamId,
-        event,
-        time,
-        timeSeconds,
-        place,
-      });
-      return await this.resultRepository.save(newResult);
-    }
+    );
   }
 
-  async upsertResults(resultsData: ResultData[]) {
+  // Upserts results for a single meet using already-resolved team/athlete id
+  // maps, so no lookup queries are needed at all.
+  async upsertResults(
+    resultsData: ResultData[],
+    meet: Meet,
+    teamIdMap: Map<string, number>,
+    athleteIdMap: Map<string, number>,
+  ) {
     if (resultsData.length === 0) return;
 
-    // --- Fetch referenced entities ---
-    const meetIds = [
-      ...new Set(resultsData.map((r) => String(r.sourceTffrsMeetId))),
-    ];
-    const athleteIds = [
-      ...new Set(resultsData.map((r) => String(r.sourceTffrsAthleteId))),
-    ];
-    const teamIds = [
-      ...new Set(resultsData.map((r) => String(r.sourceTffrsTeamId))),
-    ];
+    const validResults = resultsData.filter((r) => {
+      const hasValidRefs =
+        athleteIdMap.has(r.sourceTffrsAthleteId) &&
+        teamIdMap.has(r.sourceTffrsTeamId);
+      if (!hasValidRefs) {
+        console.warn(
+          `Skipping result - missing reference: athlete=${r.sourceTffrsAthleteId}, team=${r.sourceTffrsTeamId}`,
+        );
+      }
+      return hasValidRefs;
+    });
 
-    const [meets, athletes, teams] = await Promise.all([
-      this.meetRepository.find({
-        where: meetIds.map((id) => ({ sourceTffrsMeetId: id })),
-      }),
-      this.athleteRepository.find({
-        where: athleteIds.map((id) => ({ sourceTffrsAthleteId: id })),
-      }),
-      this.teamRepository.find({
-        where: teamIds.map((id) => ({ sourceTffrsId: id })),
-      }),
-    ]);
-
-    // --- Create lookup maps (all IDs as strings) ---
-    const meetMap = new Map(
-      meets.map((m) => [String(m.sourceTffrsMeetId), m.id]),
+    const uniqueResults = Array.from(
+      new Map(
+        validResults.map((r) => [`${r.sourceTffrsAthleteId}-${r.event}`, r]),
+      ).values(),
     );
-    const athleteMap = new Map(
-      athletes.map((a) => [String(a.sourceTffrsAthleteId), a.id]),
-    );
-    const teamMap = new Map(teams.map((t) => [String(t.sourceTffrsId), t.id]));
 
-    // --- Filter valid results ---
-    const validResults = resultsData
-      .filter((r) => {
-        const meetId = String(r.sourceTffrsMeetId ?? 'MISSING');
-        const athleteId = String(r.sourceTffrsAthleteId ?? 'MISSING');
-        const teamId = String(r.sourceTffrsTeamId ?? 'MISSING');
+    if (uniqueResults.length === 0) return;
 
-        const hasValidRefs =
-          meetMap.has(meetId) &&
-          athleteMap.has(athleteId) &&
-          teamMap.has(teamId);
-
-        if (!hasValidRefs) {
-          console.warn(
-            `Skipping result - missing reference: meet=${meetId}, athlete=${athleteId}, team=${teamId}`,
-          );
-        }
-        return hasValidRefs;
-      })
-      .map((r) => {
-        const meetId = String(r.sourceTffrsMeetId);
-        const athleteId = String(r.sourceTffrsAthleteId);
-        const teamId = String(r.sourceTffrsTeamId);
-
-        return {
-          meet: { id: meetMap.get(meetId)! },
-          athlete: { id: athleteMap.get(athleteId)! },
-          team: { id: teamMap.get(teamId)! },
-          sourceTffrsMeetId: meetId,
-          sourceTffrsAthleteId: athleteId,
-          sourceTffrsTeamId: teamId,
+    await this.resultRepository
+      .createQueryBuilder()
+      .insert()
+      .values(
+        uniqueResults.map((r) => ({
+          meet: { id: meet.id },
+          athlete: { id: athleteIdMap.get(r.sourceTffrsAthleteId)! },
+          team: { id: teamIdMap.get(r.sourceTffrsTeamId)! },
+          sourceTffrsMeetId: r.sourceTffrsMeetId,
+          sourceTffrsAthleteId: r.sourceTffrsAthleteId,
+          sourceTffrsTeamId: r.sourceTffrsTeamId,
           event: r.event,
           time: r.time,
           timeSeconds: r.timeSeconds,
           place: r.place,
-        };
-      });
+        })),
+      )
+      .orUpdate(
+        ['time', 'timeSeconds', 'place'],
+        ['sourceTffrsMeetId', 'sourceTffrsAthleteId', 'event'],
+      )
+      .execute();
 
-    if (validResults.length === 0) return;
-
-    // --- Deduplicate results ---
-    const resultMap = new Map<string, (typeof validResults)[0]>();
-    validResults.forEach((r) => {
-      const key = `${r.sourceTffrsMeetId}-${r.sourceTffrsAthleteId}-${r.event}`;
-      if (resultMap.has(key)) {
-        console.warn(
-          `Duplicate result detected: MeetID=${r.sourceTffrsMeetId}, AthleteID=${r.sourceTffrsAthleteId}, TeamID=${r.sourceTffrsTeamId}, Event=${r.event}, Time=${r.time}, Place=${r.place}`,
-        );
-      } else {
-        resultMap.set(key, r);
-      }
-    });
-
-    const uniqueResults = Array.from(resultMap.values());
-
-    if (uniqueResults.length < validResults.length) {
-      console.warn(
-        `Removed ${validResults.length - uniqueResults.length} duplicate results`,
-      );
-
-      const removedKeys = validResults
-        .map(
-          (r) => `${r.sourceTffrsMeetId}-${r.sourceTffrsAthleteId}-${r.event}`,
-        )
-        .filter((key) => !resultMap.has(key));
-
-      console.warn(`Duplicate result keys removed: ${removedKeys.join(', ')}`);
-    }
-
-    // --- Bulk upsert ---
-    await this.resultRepository.upsert(uniqueResults, {
-      conflictPaths: ['sourceTffrsMeetId', 'sourceTffrsAthleteId', 'event'],
-    });
-
-    console.log(`Upserted ${uniqueResults.length} results successfully.`);
+    console.log(
+      `Upserted ${uniqueResults.length} results for meet ${meet.name}.`,
+    );
   }
 
   private buildSearchUrlEnd(params: {
